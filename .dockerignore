@@ -1,0 +1,14 @@
+.git
+.github
+.env
+.env.example
+.deploy-state
+.deploy-payload
+.alittlemore-runtime-root
+infra/nginx/certs
+docs
+tests
+README.md
+docker-compose.yml
+.gitignore
+.DS_Store

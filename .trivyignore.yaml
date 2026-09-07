@@ -1,0 +1,10 @@
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - infra/cert-sync/Dockerfile
+    statement: >-
+      cert-sync is a one-shot, network-isolated helper that must read Certbot's
+      root-owned private key and chown the copied key to nginx uid 101. Its root
+      filesystem is read-only and Compose drops every capability except CHOWN
+      and DAC_OVERRIDE.
+    expired_at: 2027-09-07

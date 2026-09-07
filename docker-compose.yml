@@ -1,0 +1,733 @@
+name: alittlemore-infra
+
+x-backend-runtime: &backend-runtime
+  user: "10001:10001"
+  read_only: true
+  pull_policy: always
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:mode=1777,uid=10001,gid=10001
+  restart: unless-stopped
+
+x-frontend-runtime: &frontend-runtime
+  user: "1000:1000"
+  read_only: true
+  pull_policy: always
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:mode=1777,uid=1000,gid=1000
+  restart: unless-stopped
+
+x-backend-healthcheck: &backend-healthcheck
+  test:
+    [
+      "CMD-SHELL",
+      "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/healthcheck/ready', timeout=3).close()\"",
+    ]
+  interval: 5s
+  timeout: 5s
+  retries: 24
+
+x-frontend-healthcheck: &frontend-healthcheck
+  test:
+    [
+      "CMD-SHELL",
+      "node -e \"fetch('http://127.0.0.1:4000/healthz').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\"",
+    ]
+  interval: 5s
+  timeout: 5s
+  retries: 24
+
+x-process-healthcheck: &process-healthcheck
+  test: ["CMD-SHELL", "python -c \"import os; os.kill(1, 0)\""]
+  interval: 10s
+  timeout: 5s
+  retries: 6
+
+x-personal-workspace-backend: &personal-workspace-backend
+  <<: *backend-runtime
+  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/personal-workspace-backend:latest"
+  networks:
+    - personal-workspace-network
+  environment: &personal-workspace-backend-environment
+    APP_DEBUG: ${PERSONAL_WORKSPACE_APP_DEBUG}
+    APP_DOMAIN: ${PERSONAL_WORKSPACE_DOMAIN}
+    APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
+    APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+    APP_USE_CACHE: ${PERSONAL_WORKSPACE_APP_USE_CACHE}
+    AUTH_SESSION_TTL_SECONDS: ${PERSONAL_WORKSPACE_AUTH_SESSION_TTL_SECONDS}
+    DB_DRIVER: ${PERSONAL_WORKSPACE_DB_DRIVER}
+    DB_EXPIRE_ON_COMMIT: ${PERSONAL_WORKSPACE_DB_EXPIRE_ON_COMMIT}
+    DB_HOST: personal-workspace-postgres
+    DB_LOG_QUERY_METRICS: ${PERSONAL_WORKSPACE_DB_LOG_QUERY_METRICS}
+    DB_MAX_OVERFLOW: ${PERSONAL_WORKSPACE_DB_MAX_OVERFLOW}
+    DB_NAME: ${PERSONAL_WORKSPACE_DB_NAME}
+    DB_PASSWORD_FILE: /run/secrets/db_password
+    DB_POOL_PRE_PING: ${PERSONAL_WORKSPACE_DB_POOL_PRE_PING}
+    DB_POOL_SIZE: ${PERSONAL_WORKSPACE_DB_POOL_SIZE}
+    DB_PORT: 5432
+    DB_SLOW_QUERY_LOG_STATEMENT_MAX_LENGTH: ${PERSONAL_WORKSPACE_DB_SLOW_QUERY_LOG_STATEMENT_MAX_LENGTH}
+    DB_SLOW_QUERY_LOG_THRESHOLD_MS: ${PERSONAL_WORKSPACE_DB_SLOW_QUERY_LOG_THRESHOLD_MS}
+    DB_USER: ${PERSONAL_WORKSPACE_DB_USER}
+    FILES_ORPHAN_RETENTION_SECONDS: ${PERSONAL_WORKSPACE_FILES_ORPHAN_RETENTION_SECONDS}
+    I18N_DEFAULT_LANGUAGE: ${PERSONAL_WORKSPACE_I18N_DEFAULT_LANGUAGE}
+    MINIO_ACCESS_KEY_FILE: /run/secrets/minio_access_key
+    MINIO_CORS_MAX_AGE_SECONDS: ${MINIO_CORS_MAX_AGE_SECONDS}
+    MINIO_HOST: minio
+    MINIO_PORT: 9000
+    MINIO_PUBLIC_URL: ${APP_URL_SCHEMA}://${MINIO_DOMAIN}
+    MINIO_REGION: ${MINIO_REGION}
+    MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret_key
+    MINIO_SECURE: "false"
+    OWNER_PASSWORD_HASH_FILE: /run/secrets/owner_password_hash
+    OWNER_USERNAME: ${PERSONAL_WORKSPACE_OWNER_USERNAME}
+    SENTRY_DSN_FILE: /run/secrets/sentry_dsn
+    SENTRY_USE: ${PERSONAL_WORKSPACE_SENTRY_USE}
+    TASKIQ_CACHE_WARM_INTERVAL_SECONDS: ${PERSONAL_WORKSPACE_TASKIQ_CACHE_WARM_INTERVAL_SECONDS}
+    TASKIQ_FILE_ORPHAN_PRUNE_INTERVAL_SECONDS: ${PERSONAL_WORKSPACE_TASKIQ_FILE_ORPHAN_PRUNE_INTERVAL_SECONDS}
+    TASKIQ_RESULT_EXPIRE_SECONDS: ${PERSONAL_WORKSPACE_TASKIQ_RESULT_EXPIRE_SECONDS}
+    VALKEY_HOST: personal-workspace-valkey
+    VALKEY_PORT: 6379
+  secrets: &personal-workspace-backend-secrets
+    - source: personal_workspace_app_secret_key
+      target: app_secret_key
+    - source: personal_workspace_db_password
+      target: db_password
+    - source: personal_workspace_minio_access_key
+      target: minio_access_key
+    - source: personal_workspace_minio_secret_key
+      target: minio_secret_key
+    - source: personal_workspace_owner_password_hash
+      target: owner_password_hash
+    - source: personal_workspace_sentry_dsn
+      target: sentry_dsn
+
+x-competency-backend: &competency-backend
+  <<: *backend-runtime
+  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/competency-trainer-backend:latest"
+  networks:
+    - competency-network
+  environment: &competency-backend-environment
+    AGENT_ACCESS_CERTIFICATE_CHAIN_FILE: /run/secrets/agent_certificate_chain
+    AGENT_ACCESS_ISSUING_CERTIFICATE_FILE: /run/secrets/agent_issuing_certificate
+    AGENT_ACCESS_ISSUING_PRIVATE_KEY_FILE: /run/secrets/agent_issuing_private_key
+    APP_CONTACT_REQUESTS_ENABLED: ${COMPETENCY_APP_CONTACT_REQUESTS_ENABLED}
+    APP_DEBUG: ${COMPETENCY_APP_DEBUG}
+    APP_DOMAIN: ${COMPETENCY_DOMAIN}
+    APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
+    APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+    APP_USE_CACHE: ${COMPETENCY_APP_USE_CACHE}
+    AUTH_PRIVATE_KEY_FILE: /run/secrets/auth_private_key
+    AUTH_PUBLIC_KEY: ${COMPETENCY_AUTH_PUBLIC_KEY}
+    AUTH_SESSION_ABSOLUTE_EXPIRE_SECONDS: ${COMPETENCY_AUTH_SESSION_ABSOLUTE_EXPIRE_SECONDS}
+    AUTH_SESSION_EXPIRE_SECONDS: ${COMPETENCY_AUTH_SESSION_EXPIRE_SECONDS}
+    AUTH_TOKEN_EXPIRE_SECONDS: ${COMPETENCY_AUTH_TOKEN_EXPIRE_SECONDS}
+    AUTH_TOKEN_HEADER_NAME: ${COMPETENCY_AUTH_TOKEN_HEADER_NAME}
+    AUTH_TOKEN_PREFIX: ${COMPETENCY_AUTH_TOKEN_PREFIX}
+    CACHE_WARM_ARTICLES_PAGE_SIZE: ${COMPETENCY_CACHE_WARM_ARTICLES_PAGE_SIZE}
+    COMPETENCY_MATRIX_QUESTION_SUGGESTION_ANONYMOUS_DAILY_LIMIT: ${COMPETENCY_MATRIX_QUESTION_SUGGESTION_ANONYMOUS_DAILY_LIMIT}
+    DB_DRIVER: ${COMPETENCY_DB_DRIVER}
+    DB_EXPIRE_ON_COMMIT: ${COMPETENCY_DB_EXPIRE_ON_COMMIT}
+    DB_HOST: competency-postgres
+    DB_LOG_QUERY_METRICS: ${COMPETENCY_DB_LOG_QUERY_METRICS}
+    DB_MAX_OVERFLOW: ${COMPETENCY_DB_MAX_OVERFLOW}
+    DB_NAME: ${COMPETENCY_DB_NAME}
+    DB_PASSWORD_FILE: /run/secrets/db_password
+    DB_POOL_PRE_PING: ${COMPETENCY_DB_POOL_PRE_PING}
+    DB_POOL_SIZE: ${COMPETENCY_DB_POOL_SIZE}
+    DB_PORT: 5432
+    DB_SLOW_QUERY_LOG_STATEMENT_MAX_LENGTH: ${COMPETENCY_DB_SLOW_QUERY_LOG_STATEMENT_MAX_LENGTH}
+    DB_SLOW_QUERY_LOG_THRESHOLD_MS: ${COMPETENCY_DB_SLOW_QUERY_LOG_THRESHOLD_MS}
+    DB_USER: ${COMPETENCY_DB_USER}
+    FILES_ORPHAN_RETENTION_SECONDS: ${COMPETENCY_FILES_ORPHAN_RETENTION_SECONDS}
+    I18N_DEFAULT_LANGUAGE: ${COMPETENCY_I18N_DEFAULT_LANGUAGE}
+    MINIO_ACCESS_KEY_FILE: /run/secrets/minio_access_key
+    MINIO_CORS_MAX_AGE_SECONDS: ${MINIO_CORS_MAX_AGE_SECONDS}
+    MINIO_HOST: minio
+    MINIO_PORT: 9000
+    MINIO_PUBLIC_URL: ${APP_URL_SCHEMA}://${MINIO_DOMAIN}
+    MINIO_REGION: ${MINIO_REGION}
+    MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret_key
+    MINIO_SECURE: "false"
+    OWNER_INIT_LOGIN: ${COMPETENCY_OWNER_INIT_LOGIN}
+    OWNER_INIT_PASSWORD_FILE: /run/secrets/owner_init_password
+    SENTRY_DSN_FILE: /run/secrets/sentry_dsn
+    SENTRY_USE: ${COMPETENCY_SENTRY_USE}
+    TASKIQ_AGENT_AUDIT_PRUNE_INTERVAL_SECONDS: ${COMPETENCY_TASKIQ_AGENT_AUDIT_PRUNE_INTERVAL_SECONDS}
+    TASKIQ_AUTH_SESSION_PRUNE_INTERVAL_SECONDS: ${COMPETENCY_TASKIQ_AUTH_SESSION_PRUNE_INTERVAL_SECONDS}
+    TASKIQ_CACHE_WARM_INTERVAL_SECONDS: ${COMPETENCY_TASKIQ_CACHE_WARM_INTERVAL_SECONDS}
+    TASKIQ_FILE_ORPHAN_PRUNE_INTERVAL_SECONDS: ${COMPETENCY_TASKIQ_FILE_ORPHAN_PRUNE_INTERVAL_SECONDS}
+    TASKIQ_RESULT_EXPIRE_SECONDS: ${COMPETENCY_TASKIQ_RESULT_EXPIRE_SECONDS}
+    VALKEY_HOST: competency-valkey
+    VALKEY_PORT: 6379
+  secrets: &competency-backend-secrets
+    - source: competency_app_secret_key
+      target: app_secret_key
+    - source: competency_auth_private_key
+      target: auth_private_key
+    - source: competency_db_password
+      target: db_password
+    - source: competency_minio_access_key
+      target: minio_access_key
+    - source: competency_minio_secret_key
+      target: minio_secret_key
+    - source: competency_owner_init_password
+      target: owner_init_password
+    - source: competency_sentry_dsn
+      target: sentry_dsn
+
+x-competency-agent-secrets: &competency-agent-secrets
+  - source: competency_app_secret_key
+    target: app_secret_key
+  - source: competency_auth_private_key
+    target: auth_private_key
+  - source: competency_db_password
+    target: db_password
+  - source: competency_minio_access_key
+    target: minio_access_key
+  - source: competency_minio_secret_key
+    target: minio_secret_key
+  - source: competency_owner_init_password
+    target: owner_init_password
+  - source: competency_sentry_dsn
+    target: sentry_dsn
+  - source: competency_agent_issuing_certificate
+    target: agent_issuing_certificate
+  - source: competency_agent_issuing_private_key
+    target: agent_issuing_private_key
+  - source: competency_agent_certificate_chain
+    target: agent_certificate_chain
+
+services:
+  personal-workspace-backend-blue:
+    <<: *personal-workspace-backend
+    container_name: personal_workspace_backend_blue
+    command: bash start_application.sh run
+    depends_on:
+      personal-workspace-postgres:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+      personal-workspace-valkey:
+        condition: service_healthy
+    healthcheck: *backend-healthcheck
+
+  personal-workspace-backend-green:
+    <<: *personal-workspace-backend
+    container_name: personal_workspace_backend_green
+    command: bash start_application.sh run
+    depends_on:
+      personal-workspace-postgres:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+      personal-workspace-valkey:
+        condition: service_healthy
+    healthcheck: *backend-healthcheck
+
+  personal-workspace-backend-init:
+    <<: *personal-workspace-backend
+    restart: "no"
+    command: bash start_application.sh init
+    depends_on:
+      personal-workspace-postgres:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+      personal-workspace-valkey:
+        condition: service_healthy
+
+  personal-workspace-taskiq-worker-blue:
+    <<: *personal-workspace-backend
+    container_name: personal_workspace_taskiq_worker_blue
+    command: bash start_application.sh taskiq-worker
+    depends_on:
+      personal-workspace-postgres:
+        condition: service_healthy
+      personal-workspace-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  personal-workspace-taskiq-worker-green:
+    <<: *personal-workspace-backend
+    container_name: personal_workspace_taskiq_worker_green
+    command: bash start_application.sh taskiq-worker
+    depends_on:
+      personal-workspace-postgres:
+        condition: service_healthy
+      personal-workspace-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  personal-workspace-taskiq-scheduler-blue:
+    <<: *personal-workspace-backend
+    container_name: personal_workspace_taskiq_scheduler_blue
+    command: bash start_application.sh taskiq-scheduler
+    depends_on:
+      personal-workspace-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  personal-workspace-taskiq-scheduler-green:
+    <<: *personal-workspace-backend
+    container_name: personal_workspace_taskiq_scheduler_green
+    command: bash start_application.sh taskiq-scheduler
+    depends_on:
+      personal-workspace-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  personal-workspace-frontend-blue:
+    <<: *frontend-runtime
+    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/personal-workspace-frontend:latest"
+    container_name: personal_workspace_frontend_blue
+    networks:
+      - personal-workspace-network
+    environment:
+      PORT: 4000
+    healthcheck: *frontend-healthcheck
+
+  personal-workspace-frontend-green:
+    <<: *frontend-runtime
+    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/personal-workspace-frontend:latest"
+    container_name: personal_workspace_frontend_green
+    networks:
+      - personal-workspace-network
+    environment:
+      PORT: 4000
+    healthcheck: *frontend-healthcheck
+
+  competency-backend-blue:
+    <<: *competency-backend
+    container_name: competency_trainer_backend_blue
+    command: bash start_application.sh run
+    secrets: *competency-agent-secrets
+    depends_on:
+      competency-postgres:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+      competency-valkey:
+        condition: service_healthy
+    healthcheck: *backend-healthcheck
+
+  competency-backend-green:
+    <<: *competency-backend
+    container_name: competency_trainer_backend_green
+    command: bash start_application.sh run
+    secrets: *competency-agent-secrets
+    depends_on:
+      competency-postgres:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+      competency-valkey:
+        condition: service_healthy
+    healthcheck: *backend-healthcheck
+
+  competency-backend-init:
+    <<: *competency-backend
+    restart: "no"
+    command: bash start_application.sh init
+    depends_on:
+      competency-postgres:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+      competency-valkey:
+        condition: service_healthy
+
+  competency-taskiq-worker-blue:
+    <<: *competency-backend
+    container_name: competency_trainer_taskiq_worker_blue
+    command: bash start_application.sh taskiq-worker
+    depends_on:
+      competency-postgres:
+        condition: service_healthy
+      competency-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  competency-taskiq-worker-green:
+    <<: *competency-backend
+    container_name: competency_trainer_taskiq_worker_green
+    command: bash start_application.sh taskiq-worker
+    depends_on:
+      competency-postgres:
+        condition: service_healthy
+      competency-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  competency-taskiq-scheduler-blue:
+    <<: *competency-backend
+    container_name: competency_trainer_taskiq_scheduler_blue
+    command: bash start_application.sh taskiq-scheduler
+    depends_on:
+      competency-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  competency-taskiq-scheduler-green:
+    <<: *competency-backend
+    container_name: competency_trainer_taskiq_scheduler_green
+    command: bash start_application.sh taskiq-scheduler
+    depends_on:
+      competency-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  competency-frontend-blue:
+    <<: *frontend-runtime
+    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/competency-trainer-frontend:latest"
+    container_name: competency_trainer_frontend_blue
+    networks:
+      - competency-network
+    environment:
+      PORT: 4000
+      APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+      APP_DOMAIN: ${COMPETENCY_DOMAIN}
+      SSR_API_ORIGIN: http://competency-backend-blue:8080
+      SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${COMPETENCY_DOMAIN}
+      NG_ALLOWED_HOSTS: ${COMPETENCY_DOMAIN}
+    healthcheck: *frontend-healthcheck
+
+  competency-frontend-green:
+    <<: *frontend-runtime
+    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/competency-trainer-frontend:latest"
+    container_name: competency_trainer_frontend_green
+    networks:
+      - competency-network
+    environment:
+      PORT: 4000
+      APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+      APP_DOMAIN: ${COMPETENCY_DOMAIN}
+      SSR_API_ORIGIN: http://competency-backend-green:8080
+      SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${COMPETENCY_DOMAIN}
+      NG_ALLOWED_HOSTS: ${COMPETENCY_DOMAIN}
+    healthcheck: *frontend-healthcheck
+
+  personal-workspace-postgres:
+    image: postgres:18.4-alpine
+    container_name: personal_workspace_postgres
+    user: "70:70"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PERSONAL_WORKSPACE_DB_NAME}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_USER: ${PERSONAL_WORKSPACE_DB_USER}
+    secrets:
+      - source: personal_workspace_db_password
+        target: db_password
+    volumes:
+      - personal_workspace_postgres_data:/var/lib/postgresql
+    networks:
+      - personal-workspace-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 60s
+      retries: 12
+
+  personal-workspace-valkey:
+    image: valkey/valkey:9.0.1
+    container_name: personal_workspace_valkey
+    user: "999:999"
+    restart: unless-stopped
+    volumes:
+      - personal_workspace_valkey_data:/data
+    networks:
+      - personal-workspace-network
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 60s
+      retries: 12
+
+  minio:
+    build:
+      context: .
+      dockerfile: infra/minio/Dockerfile
+    image: alittlemore-infra/minio:RELEASE.2025-09-07T16-13-09Z
+    pull_policy: never
+    container_name: alittlemore_infra_minio
+    user: "10002:10002"
+    restart: unless-stopped
+    environment:
+      MINIO_API_CORS_ALLOW_ORIGIN: ${APP_URL_SCHEMA}://${PERSONAL_WORKSPACE_DOMAIN},${APP_URL_SCHEMA}://${COMPETENCY_DOMAIN}
+      MINIO_REGION_NAME: ${MINIO_REGION}
+    secrets:
+      - source: minio_root_access_key
+        target: minio_root_access_key
+      - source: minio_root_secret_key
+        target: minio_root_secret_key
+    volumes:
+      - minio_data:/data
+    command: ["server", "/data", "--console-address", ":9001"]
+    networks:
+      - personal-workspace-network
+      - competency-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 60s
+      retries: 12
+
+  minio-bootstrap:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: alittlemore_infra_minio_bootstrap
+    user: "10003:10003"
+    read_only: true
+    restart: "no"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:mode=1777,uid=10003,gid=10003
+    environment:
+      MC_CONFIG_DIR: /tmp/mc
+    entrypoint: ["/bin/sh", "/bootstrap.sh"]
+    secrets:
+      - source: minio_root_access_key
+        target: minio_root_access_key
+      - source: minio_root_secret_key
+        target: minio_root_secret_key
+      - source: personal_workspace_minio_access_key
+        target: personal_workspace_minio_access_key
+      - source: personal_workspace_minio_secret_key
+        target: personal_workspace_minio_secret_key
+      - source: competency_minio_access_key
+        target: competency_minio_access_key
+      - source: competency_minio_secret_key
+        target: competency_minio_secret_key
+      - source: databasus_minio_access_key
+        target: databasus_minio_access_key
+      - source: databasus_minio_secret_key
+        target: databasus_minio_secret_key
+    volumes:
+      - ./infra/scripts/minio_bootstrap.sh:/bootstrap.sh:ro
+      - ./infra/minio/policies:/policies:ro
+    networks:
+      - personal-workspace-network
+      - competency-network
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  competency-postgres:
+    image: postgres:18.4-alpine
+    container_name: competency_trainer_postgres
+    user: "70:70"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${COMPETENCY_DB_NAME}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_USER: ${COMPETENCY_DB_USER}
+    secrets:
+      - source: competency_db_password
+        target: db_password
+    volumes:
+      - competency_postgres_data:/var/lib/postgresql
+    networks:
+      - competency-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 60s
+      retries: 12
+
+  competency-valkey:
+    image: valkey/valkey:9.0.1
+    container_name: competency_trainer_valkey
+    user: "999:999"
+    restart: unless-stopped
+    volumes:
+      - competency_valkey_data:/data
+    networks:
+      - competency-network
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 60s
+      retries: 12
+
+  databasus:
+    image: databasus/databasus:v3.47.1
+    container_name: alittlemore_infra_databasus
+    restart: unless-stopped
+    volumes:
+      - databasus_data:/databasus-data
+    networks:
+      - personal-workspace-network
+      - competency-network
+    depends_on:
+      personal-workspace-postgres:
+        condition: service_healthy
+      competency-postgres:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+
+  nginx:
+    build:
+      context: .
+      dockerfile: infra/nginx/Dockerfile
+    image: ${NGINX_IMAGE:-alittlemore-infra/nginx:1.31.3}
+    pull_policy: never
+    container_name: alittlemore_infra_nginx
+    user: "101:101"
+    read_only: true
+    restart: always
+    stop_signal: SIGQUIT
+    stop_grace_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:mode=1777,uid=101,gid=101
+    volumes:
+      - ./infra/nginx/certs:/certs:ro
+      - certbot_www:/var/www/certbot:ro
+    secrets:
+      - source: competency_agent_certificate_chain
+        target: agent_client_ca_certificate
+    environment:
+      PERSONAL_WORKSPACE_DOMAIN: ${PERSONAL_WORKSPACE_DOMAIN}
+      PERSONAL_WORKSPACE_ACTIVE_BACKEND: ${PERSONAL_WORKSPACE_ACTIVE_BACKEND:-personal-workspace-backend-blue}
+      PERSONAL_WORKSPACE_ACTIVE_FRONTEND: ${PERSONAL_WORKSPACE_ACTIVE_FRONTEND:-personal-workspace-frontend-blue}
+      COMPETENCY_DOMAIN: ${COMPETENCY_DOMAIN}
+      COMPETENCY_ACTIVE_BACKEND: ${COMPETENCY_ACTIVE_BACKEND:-competency-backend-blue}
+      COMPETENCY_ACTIVE_FRONTEND: ${COMPETENCY_ACTIVE_FRONTEND:-competency-frontend-blue}
+      MINIO_DOMAIN: ${MINIO_DOMAIN}
+      MINIO_PUBLIC_URL: ${APP_URL_SCHEMA}://${MINIO_DOMAIN}
+      SSL_CERT: ${SSL_CERT}
+      SSL_KEY: ${SSL_KEY}
+      NGINX_LIVENESS_FAILURE_LIMIT: 12
+    command: ["/usr/local/bin/alittlemore-nginx-entrypoint"]
+    ports:
+      - "80:8080"
+      - "443:8443"
+      - "${VPN_BIND_ADDRESS}:18081:18081"
+      - "${VPN_BIND_ADDRESS}:18082:18082"
+      - "${VPN_BIND_ADDRESS}:18083:18083"
+    depends_on:
+      minio-bootstrap:
+        condition: service_completed_successfully
+      databasus:
+        condition: service_started
+    networks:
+      - personal-workspace-network
+      - competency-network
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/alittlemore-nginx-healthcheck"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+
+  certbot:
+    image: certbot/certbot:v5.2.2
+    container_name: alittlemore_infra_certbot
+    profiles:
+      - letsencrypt
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    ports:
+      - "80:80"
+    command: ["--version"]
+    networks:
+      - certificate-network
+
+  cert-sync:
+    build:
+      context: .
+      dockerfile: infra/cert-sync/Dockerfile
+    image: alittlemore-infra/cert-sync:alpine3.22.2-openssl3.5.7
+    pull_policy: never
+    container_name: alittlemore_infra_cert_sync
+    user: "0:0"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TLS_CERTIFICATE_NAME: ${TLS_CERTIFICATE_NAME}
+      PERSONAL_WORKSPACE_DOMAIN: ${PERSONAL_WORKSPACE_DOMAIN}
+      COMPETENCY_DOMAIN: ${COMPETENCY_DOMAIN}
+      MINIO_DOMAIN: ${MINIO_DOMAIN}
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - ./infra/nginx/certs:/certs
+    network_mode: none
+
+networks:
+  personal-workspace-network:
+    driver: bridge
+  competency-network:
+    driver: bridge
+  certificate-network:
+    driver: bridge
+
+volumes:
+  personal_workspace_postgres_data:
+  personal_workspace_valkey_data:
+  competency_postgres_data:
+  competency_valkey_data:
+  minio_data:
+  databasus_data:
+  letsencrypt:
+  certbot_www:
+
+secrets:
+  minio_root_access_key:
+    file: ${COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE:?prepare Compose secrets first}
+  minio_root_secret_key:
+    file: ${COMPOSE_MINIO_ROOT_SECRET_KEY_FILE:?prepare Compose secrets first}
+  databasus_minio_access_key:
+    file: ${COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
+  databasus_minio_secret_key:
+    file: ${COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
+  personal_workspace_app_secret_key:
+    file: ${COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
+  personal_workspace_db_password:
+    file: ${COMPOSE_PERSONAL_WORKSPACE_DB_PASSWORD_FILE:?prepare Compose secrets first}
+  personal_workspace_minio_access_key:
+    file: ${COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
+  personal_workspace_minio_secret_key:
+    file: ${COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
+  personal_workspace_owner_password_hash:
+    file: ${COMPOSE_PERSONAL_WORKSPACE_OWNER_PASSWORD_HASH_FILE:?prepare Compose secrets first}
+  personal_workspace_sentry_dsn:
+    file: ${COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE:?prepare Compose secrets first}
+  competency_app_secret_key:
+    file: ${COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
+  competency_auth_private_key:
+    file: ${COMPOSE_COMPETENCY_AUTH_PRIVATE_KEY_FILE:?prepare Compose secrets first}
+  competency_db_password:
+    file: ${COMPOSE_COMPETENCY_DB_PASSWORD_FILE:?prepare Compose secrets first}
+  competency_minio_access_key:
+    file: ${COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
+  competency_minio_secret_key:
+    file: ${COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
+  competency_owner_init_password:
+    file: ${COMPOSE_COMPETENCY_OWNER_INIT_PASSWORD_FILE:?prepare Compose secrets first}
+  competency_sentry_dsn:
+    file: ${COMPOSE_COMPETENCY_SENTRY_DSN_FILE:?prepare Compose secrets first}
+  competency_agent_issuing_certificate:
+    file: ${COMPOSE_COMPETENCY_AGENT_ISSUING_CERTIFICATE_FILE:?prepare Compose secrets first}
+  competency_agent_issuing_private_key:
+    file: ${COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE:?prepare Compose secrets first}
+  competency_agent_certificate_chain:
+    file: ${COMPOSE_COMPETENCY_AGENT_CERTIFICATE_CHAIN_FILE:?prepare Compose secrets first}

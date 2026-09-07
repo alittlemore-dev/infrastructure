@@ -1,0 +1,60 @@
+name: Deploy to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_certificates:
+        description: Issue or expand the shared Let's Encrypt certificate before startup
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-infrastructure
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Render runtime environment
+        env:
+          GITHUB_ENV_VARS_JSON: ${{ toJson(vars) }}
+          GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
+        run: bash infra/scripts/deploy_render_environment.sh
+
+      - name: Prepare deploy payload
+        run: bash infra/scripts/deploy_prepare_payload.sh
+
+      - name: Configure pinned SSH host
+        env:
+          REMOTE_HOST: ${{ vars.REMOTE_HOST }}
+          REMOTE_PATH: ${{ vars.REMOTE_PATH }}
+          REMOTE_USER: ${{ vars.REMOTE_USER }}
+          SSH_HOST_KEY_FINGERPRINT: ${{ vars.SSH_HOST_KEY_FINGERPRINT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: bash infra/scripts/deploy_configure_ssh.sh
+
+      - name: Verify remote deploy root
+        run: bash infra/scripts/deploy_verify_remote_root.sh
+
+      - name: Sync runtime files to server
+        run: bash infra/scripts/deploy_sync_payload.sh
+
+      - name: Activate payload and run unified stack
+        env:
+          ISSUE_CERTIFICATES: ${{ inputs.issue_certificates }}
+        run: bash infra/scripts/deploy_activate_payload.sh
+
+      - name: Remove an unpromoted payload
+        if: always()
+        run: bash infra/scripts/deploy_cleanup_payload.sh
