@@ -4,7 +4,7 @@ set -euo pipefail
 [[ "$REMOTE_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]
 [[ "$REMOTE_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
 [[ "$REMOTE_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]
-[[ "$REMOTE_PATH" == */alittlemore-infra ]]
+[[ "$REMOTE_PATH" != "/" ]]
 [[ "$REMOTE_PATH" != *"//"* ]]
 case "/${REMOTE_PATH#/}/" in
     */./* | */../*) exit 1 ;;

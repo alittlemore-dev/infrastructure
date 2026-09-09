@@ -11,3 +11,13 @@
   `infra/scripts/`.
 - When changing an existing inline or misplaced multi-line script, move the affected logic into
   `infra/scripts/` instead of extending it in place.
+
+## Robust Validation
+
+- Do not hardcode deployment-specific filesystem paths, hostnames, IP addresses, usernames,
+  registry locations, credential identities, or other environment choices into validation logic
+  or tests. Validate structural and security properties instead, such as normalized absolute paths,
+  valid DNS syntax, uniqueness, ownership, permissions, and explicit sentinel files.
+- Tests must exercise observable behavior and durable security invariants. Do not make tests depend
+  on one machine's directory layout or assert exact implementation text when a behavioral assertion
+  can cover the contract.

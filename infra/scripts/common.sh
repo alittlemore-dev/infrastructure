@@ -115,6 +115,42 @@ require_env_set() {
     fi
 }
 
+is_safe_absolute_path() {
+    local path="$1"
+
+    [[ "$path" =~ ^/[A-Za-z0-9._/-]+$ ]] \
+        && [ "$path" != "/" ] \
+        && [[ "$path" != *"//"* ]] \
+        && case "/${path#/}/" in
+            */./* | */../*) false ;;
+            *) true ;;
+        esac
+}
+
+is_dns_hostname() {
+    local hostname="$1"
+
+    [ "${#hostname}" -le 253 ] \
+        && [[ "$hostname" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]]
+}
+
+require_distinct_values() {
+    local description="$1"
+    shift
+    local -a values=("$@")
+    local first_index
+    local second_index
+
+    for ((first_index = 0; first_index < ${#values[@]}; first_index++)); do
+        for ((second_index = first_index + 1; second_index < ${#values[@]}; second_index++)); do
+            if [ "${values[$first_index]}" = "${values[$second_index]}" ]; then
+                echo "${description} must contain distinct values." >&2
+                exit 1
+            fi
+        done
+    done
+}
+
 runtime_state_directory() {
     local marker_file="${repo_dir}/.alittlemore-runtime-root"
     local runtime_root
@@ -133,24 +169,10 @@ runtime_state_directory() {
         exit 1
     fi
     IFS= read -r runtime_root <"$marker_file"
-    if [[ ! "$runtime_root" =~ ^/[A-Za-z0-9._/-]+/alittlemore-infra$ ]] \
-        || [[ "$runtime_root" == *"//"* ]]; then
+    if ! is_safe_absolute_path "$runtime_root"; then
         echo "Deployment runtime-root marker contains an invalid path." >&2
         exit 1
     fi
-    case "$runtime_root" in
-        /*/alittlemore-infra) ;;
-        *)
-            echo "Deployment runtime-root marker contains an invalid path." >&2
-            exit 1
-            ;;
-    esac
-    case "/${runtime_root#/}/" in
-        */./* | */../*)
-            echo "Deployment runtime-root marker contains an invalid path." >&2
-            exit 1
-            ;;
-    esac
     if [ ! -d "$runtime_root" ] || [ -L "$runtime_root" ] \
         || [ "$(readlink -f "$runtime_root")" != "$runtime_root" ]; then
         echo "Deployment runtime root must be a real canonical directory." >&2
@@ -299,18 +321,21 @@ load_environment() {
         echo "IMAGE_REGISTRY must be a registry/repository prefix without a scheme, tag, or trailing slash." >&2
         exit 1
     fi
-    if [ "$PERSONAL_WORKSPACE_DOMAIN" != "personal-workspace.alittlemore.dev" ]; then
-        echo "PERSONAL_WORKSPACE_DOMAIN must be personal-workspace.alittlemore.dev." >&2
-        exit 1
-    fi
-    if [ "$COMPETENCY_DOMAIN" != "competency.alittlemore.dev" ]; then
-        echo "COMPETENCY_DOMAIN must be competency.alittlemore.dev." >&2
-        exit 1
-    fi
-    if [ "$MINIO_DOMAIN" != "s3.alittlemore.dev" ]; then
-        echo "MINIO_DOMAIN must be s3.alittlemore.dev." >&2
-        exit 1
-    fi
+    local domain_name
+    for domain_name in \
+        "$PERSONAL_WORKSPACE_DOMAIN" \
+        "$COMPETENCY_DOMAIN" \
+        "$MINIO_DOMAIN"; do
+        if ! is_dns_hostname "$domain_name"; then
+            echo "Public application domains must be valid DNS hostnames." >&2
+            exit 1
+        fi
+    done
+    require_distinct_values \
+        "Public application domains" \
+        "$PERSONAL_WORKSPACE_DOMAIN" \
+        "$COMPETENCY_DOMAIN" \
+        "$MINIO_DOMAIN"
     if [ "$APP_URL_SCHEMA" != "https" ]; then
         echo "APP_URL_SCHEMA must be https for this production-oriented stack." >&2
         exit 1
@@ -319,18 +344,18 @@ load_environment() {
         echo "TLS_CERTIFICATE_NAME contains unsupported characters." >&2
         exit 1
     fi
-    if [ "$SSL_CERT" != "/certs/current/fullchain.pem" ] \
-        || [ "$SSL_KEY" != "/certs/current/privkey.pem" ]; then
-        echo "SSL_CERT and SSL_KEY must use the managed /certs/current certificate paths." >&2
+    if ! is_safe_absolute_path "$SSL_CERT" \
+        || ! is_safe_absolute_path "$SSL_KEY" \
+        || [ "$SSL_CERT" = "$SSL_KEY" ]; then
+        echo "SSL_CERT and SSL_KEY must be distinct normalized absolute paths." >&2
         exit 1
     fi
-    if [ "$MINIO_ROOT_ACCESS_KEY" != "alittlemore-infra-admin" ] \
-        || [ "$PERSONAL_WORKSPACE_MINIO_ACCESS_KEY" != "personal-workspace" ] \
-        || [ "$COMPETENCY_MINIO_ACCESS_KEY" != "competency-trainer" ] \
-        || [ "$DATABASUS_MINIO_ACCESS_KEY" != "databasus" ]; then
-        echo "MinIO access-key identities must keep the fixed values declared in .env.example." >&2
-        exit 1
-    fi
+    require_distinct_values \
+        "MinIO access-key identities" \
+        "$MINIO_ROOT_ACCESS_KEY" \
+        "$PERSONAL_WORKSPACE_MINIO_ACCESS_KEY" \
+        "$COMPETENCY_MINIO_ACCESS_KEY" \
+        "$DATABASUS_MINIO_ACCESS_KEY"
     local minio_secret_variable_name
     local minio_secret_value
     for minio_secret_variable_name in \

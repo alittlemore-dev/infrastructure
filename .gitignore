@@ -6,3 +6,4 @@ infra/nginx/certs/
 __pycache__/
 *.py[cod]
 .DS_Store
+docs/superpowers

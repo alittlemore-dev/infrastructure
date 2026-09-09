@@ -10,9 +10,11 @@ cleanup_remote_payload() {
     local stage_path
 
     [[ "$stage_name" =~ ^incoming-[0-9]+-[0-9]+$ ]]
-    case "$deploy_path" in
-        /*/alittlemore-infra) ;;
-        *) exit 1 ;;
+    [[ "$deploy_path" =~ ^/[A-Za-z0-9._/-]+$ ]]
+    [ "$deploy_path" != "/" ]
+    [[ "$deploy_path" != *"//"* ]]
+    case "/${deploy_path#/}/" in
+        */./* | */../*) exit 1 ;;
     esac
     [ -d "$deploy_path" ]
     [ ! -L "$deploy_path" ]

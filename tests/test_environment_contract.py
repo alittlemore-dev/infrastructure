@@ -286,17 +286,5 @@ class EnvironmentContractTest(unittest.TestCase):
         ):
             self.assertIn(image, compose)
 
-    def test_public_domains_and_managed_certificate_paths_are_fixed(self) -> None:
-        common = COMMON.read_text(encoding="utf-8")
-        for expected in (
-            'PERSONAL_WORKSPACE_DOMAIN" != "personal-workspace.alittlemore.dev',
-            'COMPETENCY_DOMAIN" != "competency.alittlemore.dev',
-            'MINIO_DOMAIN" != "s3.alittlemore.dev',
-            'SSL_CERT" != "/certs/current/fullchain.pem',
-            'SSL_KEY" != "/certs/current/privkey.pem',
-        ):
-            self.assertIn(expected, common)
-
-
 if __name__ == "__main__":
     unittest.main()

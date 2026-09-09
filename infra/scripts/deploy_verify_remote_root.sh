@@ -10,12 +10,11 @@ verify_remote_root() {
     local certificates_path
     local stage_path
 
-    case "$deploy_path" in
-        /*/alittlemore-infra) ;;
-        *)
-            echo "REMOTE_PATH must be an absolute dedicated path ending in /alittlemore-infra." >&2
-            exit 1
-            ;;
+    [[ "$deploy_path" =~ ^/[A-Za-z0-9._/-]+$ ]]
+    [ "$deploy_path" != "/" ]
+    [[ "$deploy_path" != *"//"* ]]
+    case "/${deploy_path#/}/" in
+        */./* | */../*) exit 1 ;;
     esac
     [ -d "$deploy_path" ]
     [ ! -L "$deploy_path" ]
