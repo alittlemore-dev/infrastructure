@@ -2,9 +2,12 @@
 .github
 .env
 .env.example
+.sops.yaml
 .deploy-state
 .deploy-payload
 .alittlemore-runtime-root
+config
+secrets
 infra/nginx/certs
 docs
 tests

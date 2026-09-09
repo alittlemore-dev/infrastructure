@@ -101,30 +101,6 @@ prepare_minio_volume_permissions() {
         -c 'mkdir -p /data && chown -R 10002:10002 /data'
 }
 
-verify_minio_credential_fingerprints() {
-    local previous_slot="$1"
-
-    if [ ! -e "$MINIO_CREDENTIAL_FINGERPRINT_FILE" ] \
-        && [ ! -L "$MINIO_CREDENTIAL_FINGERPRINT_FILE" ]; then
-        if [ -n "$previous_slot" ]; then
-            echo "An active deployment exists without a MinIO credential fingerprint marker." >&2
-            echo "Refusing to mutate live MinIO credentials automatically." >&2
-            exit 1
-        fi
-        return
-    fi
-    if ! python3 "$script_dir/validate_private_file.py" "$MINIO_CREDENTIAL_FINGERPRINT_FILE"; then
-        echo "MinIO credential fingerprint marker must be owner-only and owned by the current user." >&2
-        exit 1
-    fi
-    if ! python3 "$script_dir/minio_credential_fingerprints.py" \
-        | cmp -s "$MINIO_CREDENTIAL_FINGERPRINT_FILE" -; then
-        echo "MinIO credential rotation is not supported during make run." >&2
-        echo "Keep the four existing MinIO secret keys or perform a coordinated maintenance rotation." >&2
-        exit 1
-    fi
-}
-
 record_minio_credential_fingerprints() {
     local temporary_fingerprint_file
 
@@ -360,14 +336,13 @@ require_command openssl
 acquire_runtime_lock
 load_environment
 previous_slot="$(read_active_slot)"
-verify_minio_credential_fingerprints "$previous_slot"
-prepare_compose_secret_files
 if [ -z "$previous_slot" ]; then
     target_slot=blue
 else
     target_slot="$(other_slot "$previous_slot")"
 fi
 readonly target_slot
+prepare_compose_secret_files "$target_slot"
 
 export PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-${target_slot}"
 export PERSONAL_WORKSPACE_ACTIVE_FRONTEND="personal-workspace-frontend-${target_slot}"

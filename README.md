@@ -69,11 +69,24 @@ VPN-only tools:
 
 ## Start and stop
 
-Create an owner-only local runtime configuration and replace every placeholder:
+Open production configuration is tracked per scope:
 
-```bash
-install -m 600 .env.example .env
+```text
+config/
+├── platform/production.env
+├── personal-workspace/production.env
+└── competency-trainer/production.env
 ```
+
+Application files use the variables' native names, so both applications can have their own
+`APP_DEBUG`, `DB_NAME`, and similar settings without prefixes. Only the small set of values needed
+by Compose itself is rendered into owner-only internal aliases below `.deploy-state/`.
+
+Secrets use the same service-scoped layout under `secrets/`, but the tracked documents are
+encrypted with SOPS and age. Before the first start, create the production and recovery age
+identities and run the local secret bootstrap described in the
+[production guide](docs/production-deploy.md). Install SOPS on the runtime host and keep its private
+age identity at the absolute owner-only path configured by `SOPS_AGE_KEY_FILE`.
 
 The Docker client on the machine that runs the stack must already be authenticated to
 `IMAGE_REGISTRY` when the application images are private.
@@ -99,16 +112,16 @@ applications through `127.0.0.1` with their production hostnames, records the ac
 drains the old one.
 
 Stop containers without deleting named volumes. This emergency path does not parse or validate
-`.env` or application PKI, so it remains usable when runtime configuration is damaged. A
-successful full stop clears the active-slot marker, and the next `make run` performs a fresh
-blue-slot start:
+tracked configuration, encrypted secrets, or application PKI, so it remains usable when runtime
+configuration is damaged. A successful full stop clears the active-slot marker, and the next
+`make run` performs a fresh blue-slot start:
 
 ```bash
 make stop
 ```
 
-See [Production deployment](docs/production-deploy.md) for GitHub Environment setup, TLS renewal,
-security boundaries, and rollback behavior.
+See [Production deployment](docs/production-deploy.md) for the one-time local SOPS bootstrap,
+age-key setup, TLS renewal, security boundaries, and rollback behavior.
 
 ## Checks prepared for a separate run
 
@@ -122,7 +135,8 @@ make quality
 ```
 
 `make tests` checks the environment/manifest/exposure, nginx security, PKI path, and deploy payload
-contracts. `make check` adds shell syntax, manifest parsing, and a fully rendered
+contracts. In CI it also performs a real SOPS/age encrypt-decrypt round trip with checksum-pinned
+tools. `make check` adds shell syntax, manifest parsing, and a fully rendered
 `docker compose config`. The lint target uses pinned Hadolint and ShellCheck images. Trivy config
 and image scans are separate because image scans need registry access and build the three small
 infrastructure wrappers.

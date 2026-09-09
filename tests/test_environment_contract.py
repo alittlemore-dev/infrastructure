@@ -8,42 +8,26 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-MANIFEST = ROOT / "infra/deploy/runtime-env.manifest.json"
-ENV_EXAMPLE = ROOT / ".env.example"
+PUBLIC_MANIFEST = ROOT / "infra/deploy/runtime-config.manifest.json"
+SECRET_MANIFEST = ROOT / "infra/deploy/runtime-secrets.manifest.json"
 COMPOSE = ROOT / "docker-compose.yml"
-COMMON = ROOT / "infra/scripts/common.sh"
+STOP_COMPOSE = ROOT / "infra/compose/stop.yml"
 
 
-def env_example_names() -> set[str]:
+def env_names(path: Path) -> set[str]:
     return {
         line.split("=", 1)[0]
-        for line in ENV_EXAMPLE.read_text(encoding="utf-8").splitlines()
+        for line in path.read_text(encoding="utf-8").splitlines()
         if line and not line.startswith("#")
     }
 
 
-def manifest_names() -> tuple[set[str], set[str]]:
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    all_names = {
-        entry["name"]
-        for group in ("computed", "vars", "secrets")
-        for entry in manifest[group]
-    }
-    allow_empty = {
-        entry["name"]
-        for group in ("computed", "vars", "secrets")
-        for entry in manifest[group]
-        if entry["allowEmpty"]
-    }
-    return all_names, allow_empty
+def public_manifest() -> dict:
+    return json.loads(PUBLIC_MANIFEST.read_text(encoding="utf-8"))
 
 
-def bash_array(name: str) -> set[str]:
-    source = COMMON.read_text(encoding="utf-8")
-    match = re.search(rf"readonly {name}=\(\n(?P<body>.*?)\n\)", source, re.DOTALL)
-    if match is None:
-        raise AssertionError(f"Could not find {name} in common.sh")
-    return {line.strip() for line in match.group("body").splitlines() if line.strip()}
+def secret_manifest() -> dict:
+    return json.loads(SECRET_MANIFEST.read_text(encoding="utf-8"))
 
 
 def compose_service_blocks(compose: str) -> dict[str, str]:
@@ -62,17 +46,75 @@ def compose_service_blocks(compose: str) -> dict[str, str]:
 
 
 class EnvironmentContractTest(unittest.TestCase):
-    def test_manifest_and_example_declare_the_same_runtime_values(self) -> None:
-        names, _ = manifest_names()
-        self.assertEqual(names, env_example_names())
+    def test_public_config_is_service_scoped_and_uses_native_application_names(self) -> None:
+        manifest = public_manifest()
+        configs = {entry["name"]: entry for entry in manifest["configs"]}
 
-    def test_shell_validation_matches_manifest_empty_value_policy(self) -> None:
-        names, allow_empty = manifest_names()
-        self.assertEqual(allow_empty, bash_array("ALLOW_EMPTY_ENVIRONMENT_VARIABLES"))
-        self.assertEqual(names - allow_empty, bash_array("REQUIRED_ENVIRONMENT_VARIABLES"))
+        self.assertEqual(
+            {"platform", "personal-workspace", "competency-trainer"}, set(configs)
+        )
+        for config in configs.values():
+            self.assertEqual(
+                set(config["variables"]),
+                env_names(ROOT / config["path"]),
+            )
+        for application in ("personal-workspace", "competency-trainer"):
+            names = set(configs[application]["variables"])
+            self.assertIn("APP_DEBUG", names)
+            self.assertIn("APP_DOMAIN", names)
+            self.assertIn("DB_NAME", names)
+            for native_name in ("APP_DEBUG", "APP_DOMAIN", "APP_USE_CACHE", "DB_NAME", "DB_USER"):
+                self.assertNotIn(f"PERSONAL_WORKSPACE_{native_name}", names)
+                self.assertNotIn(f"COMPETENCY_{native_name}", names)
+
+    def test_secret_contract_is_service_scoped_and_reuses_native_names(self) -> None:
+        documents = {entry["name"]: entry for entry in secret_manifest()["documents"]}
+
+        self.assertEqual(
+            {"platform", "personal-workspace", "competency-trainer"}, set(documents)
+        )
+        personal_names = {entry["name"] for entry in documents["personal-workspace"]["secrets"]}
+        competency_names = {
+            entry["name"] for entry in documents["competency-trainer"]["secrets"]
+        }
+        for native_name in ("APP_SECRET_KEY", "DB_PASSWORD", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "SENTRY_DSN"):
+            self.assertIn(native_name, personal_names)
+            self.assertIn(native_name, competency_names)
+        self.assertFalse(
+            any(
+                entry["name"].startswith(("PERSONAL_WORKSPACE_", "COMPETENCY_"))
+                for document in documents.values()
+                for entry in document["secrets"]
+            )
+        )
+        competency_specs = {
+            entry["name"]: entry for entry in documents["competency-trainer"]["secrets"]
+        }
+        self.assertEqual(
+            {
+                "AUTH_PRIVATE_KEY",
+                "AGENT_ACCESS_ISSUING_CERTIFICATE",
+                "AGENT_ACCESS_ISSUING_PRIVATE_KEY",
+                "AGENT_ACCESS_CERTIFICATE_CHAIN",
+            },
+            {
+                name
+                for name, spec in competency_specs.items()
+                if spec.get("encoding") == "pem"
+            },
+        )
 
     def test_compose_variables_are_declared_or_generated_by_runtime(self) -> None:
-        names, _ = manifest_names()
+        runtime_names = {
+            target
+            for config in public_manifest()["configs"]
+            for target in config["runtimeAliases"].values()
+        }
+        secret_path_names = {
+            secret["composeVariable"]
+            for document in secret_manifest()["documents"]
+            for secret in document["secrets"]
+        }
         compose_variables = set(
             re.findall(
                 r"(?<!\$)\$\{([A-Z][A-Z0-9_]*)",
@@ -85,28 +127,22 @@ class EnvironmentContractTest(unittest.TestCase):
             "COMPETENCY_ACTIVE_BACKEND",
             "COMPETENCY_ACTIVE_FRONTEND",
             "NGINX_IMAGE",
-            "COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE",
-            "COMPOSE_MINIO_ROOT_SECRET_KEY_FILE",
-            "COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE",
-            "COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE",
-            "COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE",
-            "COMPOSE_PERSONAL_WORKSPACE_DB_PASSWORD_FILE",
-            "COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE",
-            "COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE",
-            "COMPOSE_PERSONAL_WORKSPACE_OWNER_PASSWORD_HASH_FILE",
-            "COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE",
-            "COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE",
-            "COMPOSE_COMPETENCY_AUTH_PRIVATE_KEY_FILE",
-            "COMPOSE_COMPETENCY_DB_PASSWORD_FILE",
-            "COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE",
-            "COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE",
-            "COMPOSE_COMPETENCY_OWNER_INIT_PASSWORD_FILE",
-            "COMPOSE_COMPETENCY_SENTRY_DSN_FILE",
-            "COMPOSE_COMPETENCY_AGENT_ISSUING_CERTIFICATE_FILE",
-            "COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE",
-            "COMPOSE_COMPETENCY_AGENT_CERTIFICATE_CHAIN_FILE",
         }
-        self.assertEqual(set(), compose_variables - names - generated)
+        self.assertEqual(set(), compose_variables - runtime_names - secret_path_names - generated)
+
+    def test_backend_services_receive_native_config_from_service_env_files(self) -> None:
+        compose = COMPOSE.read_text(encoding="utf-8")
+        personal_anchor = compose.split("x-personal-workspace-backend:", maxsplit=1)[1].split(
+            "x-competency-backend:", maxsplit=1
+        )[0]
+        competency_anchor = compose.split("x-competency-backend:", maxsplit=1)[1].split(
+            "x-competency-agent-secrets:", maxsplit=1
+        )[0]
+
+        self.assertIn("env_file:\n    - ./config/personal-workspace/production.env", personal_anchor)
+        self.assertIn("env_file:\n    - ./config/competency-trainer/production.env", competency_anchor)
+        self.assertNotIn("${PERSONAL_WORKSPACE_APP_DEBUG}", personal_anchor)
+        self.assertNotIn("${COMPETENCY_APP_DEBUG}", competency_anchor)
 
     def test_host_ports_preserve_public_and_vpn_boundaries(self) -> None:
         compose = COMPOSE.read_text(encoding="utf-8")
@@ -229,16 +265,36 @@ class EnvironmentContractTest(unittest.TestCase):
         self.assertNotIn("mc admin user rm", bootstrap)
         self.assertNotIn("mc admin policy rm", bootstrap)
 
-        common = COMMON.read_text(encoding="utf-8")
-        self.assertIn("MinIO secret keys must all be different.", common)
+        compose_secrets = (ROOT / "infra/scripts/compose_secrets.sh").read_text(encoding="utf-8")
+        self.assertIn("MinIO secret keys must all be different.", compose_secrets)
 
     def test_minio_credentials_are_pinned_before_live_rollout_changes(self) -> None:
         run_script = (ROOT / "infra/scripts/run.sh").read_text(encoding="utf-8")
+        compose_secrets = (ROOT / "infra/scripts/compose_secrets.sh").read_text(
+            encoding="utf-8"
+        )
         main = run_script.split("\nacquire_runtime_lock\n", maxsplit=1)[1]
+        prepare = compose_secrets.split("prepare_compose_secret_files()", maxsplit=1)[1]
 
         self.assertLess(
-            main.index('verify_minio_credential_fingerprints "$previous_slot"'),
-            main.index("prepare_compose_secret_files"),
+            prepare.index("validate_minio_credentials"),
+            prepare.index("verify_minio_credential_fingerprints"),
+        )
+        self.assertLess(
+            prepare.index("verify_minio_credential_fingerprints"),
+            prepare.index("switch_compose_secret_slot"),
+        )
+        self.assertLess(
+            prepare.index("switch_compose_secret_slot"),
+            prepare.index('mv -f "$candidate_fingerprints" "$fingerprint_marker"'),
+        )
+        self.assertLess(
+            main.index("readonly target_slot"),
+            main.index('prepare_compose_secret_files "$target_slot"'),
+        )
+        self.assertLess(
+            main.index('prepare_compose_secret_files "$target_slot"'),
+            main.index("pull_application_images"),
         )
         self.assertLess(
             main.index('compose_up_wait --build "${INFRASTRUCTURE_SERVICES[@]}"'),
@@ -248,14 +304,50 @@ class EnvironmentContractTest(unittest.TestCase):
             main.index("record_minio_credential_fingerprints"),
             main.index("run_backend_initializers"),
         )
-        self.assertIn("Refusing to mutate live MinIO credentials automatically.", run_script)
-        self.assertIn("MinIO credential rotation is not supported during make run.", run_script)
+        self.assertIn(
+            "Refusing to mutate live MinIO credentials automatically.", compose_secrets
+        )
+        self.assertIn(
+            "MinIO credential rotation is not supported during make run.", compose_secrets
+        )
+
+    def test_emergency_stop_does_not_depend_on_runtime_configuration(self) -> None:
+        full_services = set(
+            compose_service_blocks(COMPOSE.read_text(encoding="utf-8"))
+        )
+        stop_services = set(
+            compose_service_blocks(STOP_COMPOSE.read_text(encoding="utf-8"))
+        )
+        stop_script = (ROOT / "infra/scripts/stop.sh").read_text(encoding="utf-8")
+
+        self.assertEqual(full_services, stop_services)
+        self.assertIn("pin_compose_identity", stop_script)
+        self.assertIn("--project-name alittlemore-infra", stop_script)
+        self.assertIn('down --remove-orphans', stop_script)
+        self.assertNotIn("compose_secrets.sh", stop_script)
+        self.assertNotIn("stop-placeholder", stop_script)
+        self.assertNotIn("COMPOSE_SECRET_FILE_VARIABLES", stop_script)
 
     def test_compose_has_no_privileged_or_docker_socket_access(self) -> None:
         compose = COMPOSE.read_text(encoding="utf-8")
         self.assertNotIn("privileged: true", compose)
         self.assertNotIn("network_mode: host", compose)
         self.assertNotIn("/var/run/docker.sock", compose)
+
+    def test_runtime_config_and_encrypted_secrets_are_not_sent_to_image_builds(self) -> None:
+        ignored = set((ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines())
+
+        self.assertIn("config", ignored)
+        self.assertIn("secrets", ignored)
+        self.assertIn(".sops.yaml", ignored)
+
+    def test_ci_executes_the_real_sops_round_trip(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+        self.assertIn("bash infra/scripts/install_sops.sh", workflow)
+        self.assertIn("bash infra/scripts/install_age_keygen.sh", workflow)
+        self.assertIn("SOPS_INTEGRATION_BINARY:", workflow)
+        self.assertIn("AGE_KEYGEN_INTEGRATION_BINARY:", workflow)
 
     def test_application_runtime_has_a_read_only_root_filesystem(self) -> None:
         compose = COMPOSE.read_text(encoding="utf-8")

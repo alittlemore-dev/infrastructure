@@ -1,0 +1,61 @@
+name: alittlemore-infra
+
+services:
+  personal-workspace-backend-blue:
+    image: scratch
+  personal-workspace-backend-green:
+    image: scratch
+  personal-workspace-backend-init:
+    image: scratch
+  personal-workspace-taskiq-worker-blue:
+    image: scratch
+  personal-workspace-taskiq-worker-green:
+    image: scratch
+  personal-workspace-taskiq-scheduler-blue:
+    image: scratch
+  personal-workspace-taskiq-scheduler-green:
+    image: scratch
+  personal-workspace-frontend-blue:
+    image: scratch
+  personal-workspace-frontend-green:
+    image: scratch
+  competency-backend-blue:
+    image: scratch
+  competency-backend-green:
+    image: scratch
+  competency-backend-init:
+    image: scratch
+  competency-taskiq-worker-blue:
+    image: scratch
+  competency-taskiq-worker-green:
+    image: scratch
+  competency-taskiq-scheduler-blue:
+    image: scratch
+  competency-taskiq-scheduler-green:
+    image: scratch
+  competency-frontend-blue:
+    image: scratch
+  competency-frontend-green:
+    image: scratch
+  personal-workspace-postgres:
+    image: scratch
+  personal-workspace-valkey:
+    image: scratch
+  minio:
+    image: scratch
+  minio-bootstrap:
+    image: scratch
+  competency-postgres:
+    image: scratch
+  competency-valkey:
+    image: scratch
+  databasus:
+    image: scratch
+  nginx:
+    image: scratch
+  certbot:
+    image: scratch
+  cert-sync:
+    image: scratch
+
+networks: {}

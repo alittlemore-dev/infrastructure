@@ -5,10 +5,11 @@
 The manual `.github/workflows/deploy.yml` workflow preserves the existing rsync/SSH deployment
 model while making this repository the only deploy payload:
 
-1. GitHub renders `.env` from `infra/deploy/runtime-env.manifest.json` using protected Environment
-   variables and secrets.
-2. The workflow copies only `.dockerignore`, `Makefile`, `docker-compose.yml`, `infra/`, and the
-   rendered `.env` into a deployment payload.
+1. The workflow copies `.dockerignore`, `.sops.yaml`, `Makefile`, `docker-compose.yml`, `config/`,
+   `secrets/`, and `infra/` into a deployment payload. Open configuration and SOPS-encrypted
+   secret documents therefore come from the reviewed Git commit.
+2. GitHub supplies only the SSH transport settings needed to reach the production host; it does
+   not render or transmit application configuration at deploy time.
 3. rsync uploads the payload into a run-specific directory below remote `.deploy-state` without
    touching the active runtime tree.
 4. One SSH transaction acquires the same host-side lock used by local lifecycle commands and moves
@@ -26,10 +27,12 @@ diagnosis. If SSH is interrupted after the runtime commit, the workflow reads th
 marker and finishes publishing `current`; a later deployment also reconciles `current` from that
 marker before starting another rollout. Runtime-release retention is bounded to three payloads:
 the current payload, its previous fallback, and—after a failed attempt—the diagnostic candidate.
-Older release directories, including their generated `.env` files, are removed under the runtime
-lock. A final workflow step removes a run-specific upload directory when rsync or activation stops
-before promotion. If the runtime lock is busy, cleanup is deferred and the next successful
-activation removes every other validated `incoming-<run>-<attempt>` directory.
+Older release directories, including their encrypted configuration documents, are removed under
+the runtime lock. Generated runtime aliases and decrypted Compose secret files remain in the stable
+owner-only `.deploy-state` directory. A final workflow step removes a run-specific upload directory
+when rsync or activation stops before promotion. If the runtime lock is busy, cleanup is deferred
+and the next successful activation removes every other validated `incoming-<run>-<attempt>`
+directory.
 
 Deploy runs are serialized and never cancel an in-progress stateful rollout. The deploy workflow
 does not clone or synchronize either application repository. Their build and
@@ -51,27 +54,30 @@ SSH commands. `REMOTE_HOST`, `REMOTE_USER`, and `REMOTE_PATH` are restricted to 
 before their first use. Rotate the fingerprint deliberately when the server host key changes.
 
 Bootstrap the remote path once before enabling deployment. It must be a real, non-symlinked,
-deploy-user-owned absolute directory whose final component is `alittlemore-infra`:
+deploy-user-owned absolute directory with the expected sentinel:
 
 ```bash
-install -d -m 700 /srv/alittlemore-infra
-printf 'alittlemore-infra\n' > /srv/alittlemore-infra/.alittlemore-infra-deploy-root
-chmod 600 /srv/alittlemore-infra/.alittlemore-infra-deploy-root
+install -d -m 700 /srv/alittlemore-dev
+printf 'alittlemore-infra\n' > /srv/alittlemore-dev/.alittlemore-infra-deploy-root
+chmod 600 /srv/alittlemore-dev/.alittlemore-infra-deploy-root
 ```
 
-Set `REMOTE_PATH=/srv/alittlemore-infra` for this example. The workflow verifies the path and
+Set `REMOTE_PATH=/srv/alittlemore-dev` for this example. The workflow verifies the path and
 sentinel ownership before creating this layout:
 
 ```text
-/srv/alittlemore-infra/
+/srv/alittlemore-dev/
 ├── current -> .deploy-state/releases/release-<run>-<attempt>
 ├── previous -> .deploy-state/releases/release-<run>-<attempt>
 ├── certificates/
 └── .deploy-state/
     ├── active-slot
-    ├── compose-secrets/
+    ├── compose-secrets-blue -> .compose-secret-generations/blue-<random>
+    ├── compose-secrets-green -> .compose-secret-generations/green-<random>
+    ├── .compose-secret-generations/
     ├── minio-credentials.sha256
     ├── releases/
+    ├── runtime.env
     └── runtime.lock
 ```
 
@@ -82,36 +88,87 @@ a symlink to the stable `certificates/` directory; certificate rotations therefo
 changes. A manual `make run` remains supported; outside the deployment workflow it records only the
 blue/green slot because `current` already identifies the operator-selected payload.
 
-Add every `vars` entry from `infra/deploy/runtime-env.manifest.json` as a GitHub Environment
-variable. Add every `secrets` entry as a GitHub Environment secret. The manifest is authoritative;
-`.env.example` documents representative values. `PERSONAL_WORKSPACE_SENTRY_DSN` and
-`COMPETENCY_SENTRY_DSN` are the only values allowed to be empty.
+## Configuration layout
+
+Open production settings live in three tracked files:
+
+```text
+config/
+├── platform/production.env
+├── personal-workspace/production.env
+└── competency-trainer/production.env
+```
+
+The two application files deliberately use their applications' native names. For example, both
+can declare `APP_DEBUG`, `DB_NAME`, and `DB_USER`; the file path is the namespace. Compose loads
+each file only into the corresponding backend, initializer, worker, and scheduler containers.
+`infra/deploy/runtime-config.manifest.json` defines the exact allowed keys and the few internal
+aliases needed by Compose itself, such as the two public domains and PostgreSQL database names.
+Those aliases are implementation details and are generated into `.deploy-state/runtime.env` with
+mode `0600`; they are not application configuration conventions.
+
+The open values that previously lived in the GitHub `production` Environment have been copied into
+these files. Settings which were already part of the repository's deployment contract—application
+domains, the registry prefix, certificate lineage, and the SOPS identity path—are tracked there as
+well. Review open-config changes through normal Git diffs.
 
 `IMAGE_REGISTRY` contains only the registry/repository prefix and must not end in `/`. Registry
-credentials do not belong in runtime `.env`; authenticate the deploy user's Docker client on the
-server using the registry-specific login mechanism.
+credentials do not belong in configuration files; authenticate the deploy user's Docker client on
+the server using the registry-specific login mechanism.
 
-Keep `MINIO_ROOT_ACCESS_KEY`, `PERSONAL_WORKSPACE_MINIO_ACCESS_KEY`,
-`COMPETENCY_MINIO_ACCESS_KEY`, and `DATABASUS_MINIO_ACCESS_KEY` equal to the fixed identities in
-`.env.example`; `make run` rejects other names so credential rotation cannot leave unmanaged old
-users behind. Generate distinct random values of at least eight characters for the four
-corresponding `*_SECRET_KEY` entries; `make run` rejects reused values.
+The protected GitHub Environment needs only deployment transport values:
 
-After the first successful MinIO bootstrap, `make run` stores only SHA-256 fingerprints of those
-four secret keys in the stable, owner-only `.deploy-state/minio-credentials.sha256` file. Every
-later run compares the configured credentials before pulling images or touching Docker. A changed
-secret is rejected instead of updating a live IAM user and breaking the old application slot or
-the credential saved in Databasus during a failed rollout. MinIO credential rotation is therefore
-a separate coordinated maintenance operation, not part of ordinary deployment; update Databasus'
-saved S3 destination credential as part of that maintenance.
+- Variables: `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_PATH`, `SSH_HOST_KEY_FINGERPRINT`
+- Secret: `SSH_PRIVATE_KEY`
+
+Do not remove plaintext bootstrap sources until the encrypted documents have been recovery-tested,
+committed, and successfully deployed. Keep those sources outside the repository with owner-only
+permissions.
+
+Keep the four configured MinIO access-key identities stable: `MINIO_ROOT_ACCESS_KEY` and
+`DATABASUS_MINIO_ACCESS_KEY` in the platform document, plus each application's own
+`MINIO_ACCESS_KEY`. Use distinct random values of at least eight characters for their four secret
+keys; `make run` rejects duplicate identities, short secrets, and reused secret values.
+
+After the first successful MinIO bootstrap, `make run` stores only SHA-256 fingerprints of all four
+access keys and all four secret keys in the stable, owner-only
+`.deploy-state/minio-credentials.sha256` file. Every later run compares the configured credentials
+before pulling images or touching Docker. Any change is rejected instead of creating an unmanaged
+old user or breaking the old application slot or the credential saved in Databasus during a failed
+rollout. MinIO credential rotation is therefore a separate coordinated maintenance operation, not
+part of ordinary deployment; update Databasus' saved S3 destination credential as part of that
+maintenance. A four-line marker produced by the previous deployment code is accepted once when
+its four secret-key fingerprints match, then atomically upgraded to the eight-line format that
+also pins the access-key identities.
 
 ## Secrets
 
-The deploy renderer quotes and escapes values before writing the host-side `.env`. At startup,
-`infra/scripts/compose_secrets.sh` writes application secrets into
-`.deploy-state/compose-secrets/`, restricts the directory to the deploy user, and exposes individual
-files through Compose secrets. Non-root containers receive only the files they need. Secret values
-are not copied into service `environment` entries and therefore are not exposed by `docker inspect`.
+Tracked secrets are split by scope and encrypted with SOPS using age recipients:
+
+```text
+secrets/
+├── platform/production.sops.yaml
+├── personal-workspace/production.sops.yaml
+└── competency-trainer/production.sops.yaml
+```
+
+Like open configuration, each application document uses native names such as `APP_SECRET_KEY`,
+`DB_PASSWORD`, `MINIO_ACCESS_KEY`, and `SENTRY_DSN`; the document path is the namespace.
+`infra/deploy/runtime-secrets.manifest.json` uses the same native names. No prefixed migration
+aliases are passed to applications or retained in the manifest.
+
+At startup, `infra/scripts/compose_secrets.sh` decrypts the three documents in memory into an
+owner-only immutable generation, validates their exact keys, normalizes explicitly marked PEM
+values, validates the application PKI, and checks all eight MinIO credential fingerprints. Only
+then does it atomically switch the symlink for the inactive blue/green slot. The active slot keeps
+its own generation throughout rollout and rollback, and the old flat `.deploy-state/compose-secrets`
+directory from the pre-SOPS release is deliberately left untouched during the first transition.
+Temporary path aliases are deleted rather than retained as runtime state. Each value is written to
+an individual service-scoped file. Compose mounts each file only into the containers that need it;
+values are not copied into service `environment` entries and are not exposed by `docker inspect`.
+Failed decryption, schema, PKI, or fingerprint validation leaves the active slot's secret paths
+intact.
+
 The MinIO root identity is mounted only into MinIO and its one-shot bootstrap. Application MinIO
 identities are mounted into the bootstrap and their respective backend processes. The dedicated
 Databasus identity is created by the bootstrap; its credentials are entered into Databasus when
@@ -122,12 +179,67 @@ with OpenSSL before Compose changes the running stack. The PASETO public key mus
 key. The issuing certificate must be the first certificate in the two-certificate issuing/root
 chain and must match the issuing private key.
 
-No standalone PEM files are tracked or deployed by rsync. Multiline application and Agent PKI
-values travel only inside the protected generated `.env` and are materialized into owner-only
+No plaintext PEM files are tracked or deployed by rsync. Multiline application and Agent PKI
+values exist in Git only inside SOPS-encrypted documents and are materialized into owner-only
 runtime secret files. On the deployed host, nginx server certificates live in
 `REMOTE_PATH/certificates/` and are exposed to Compose through the release-local
 `infra/nginx/certs` link, while Certbot state lives in the `letsencrypt` named volume. Certificate
 sync keeps the current certificate release and at most two older releases.
+
+### One-time local secret bootstrap
+
+Prepare three owner-only dotenv files outside the repository. Each file is scoped to one SOPS
+document, so repeated native names such as `APP_SECRET_KEY` and `DB_PASSWORD` need no prefixes:
+
+1. Install `age` on the production host and on a separate recovery machine.
+2. Generate two independent identities with `age-keygen`: one for production and one for recovery.
+   Save the displayed `age1...` public recipients. Never put either private identity in Git:
+
+   ```bash
+   umask 077
+   age-keygen -o production-age-key.txt
+   age-keygen -o recovery-age-key.txt
+   ```
+3. On the production host, install its private identity at the path configured by
+   `SOPS_AGE_KEY_FILE`:
+
+   ```bash
+   sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 700 /etc/alittlemore-infra
+   sudo install -o "$(id -un)" -g "$(id -gn)" -m 600 \
+     production-age-key.txt /etc/alittlemore-infra/sops-age-key.txt
+   ```
+
+4. From the infrastructure repository, encrypt the three local sources for both public recipients:
+
+   ```bash
+   bash infra/scripts/bootstrap_sops_secrets.sh \
+     --platform-env /absolute/path/platform.production.env \
+     --personal-workspace-env /absolute/path/personal-workspace.production.env \
+     --competency-trainer-env /absolute/path/competency-trainer.production.env \
+     --age-recipient age1-production-recipient \
+     --age-recipient age1-recovery-recipient
+   ```
+
+   The script requires regular owner-only input files, parses them as data without shell sourcing,
+   selects only the native keys declared for each document, and writes `.sops.yaml` plus the three
+   encrypted documents.
+5. Verify every document with the recovery identity before committing it:
+
+   ```bash
+   SOPS_AGE_KEY_FILE=/absolute/path/to/recovery-age-key.txt \
+     sops decrypt secrets/platform/production.sops.yaml >/dev/null
+   SOPS_AGE_KEY_FILE=/absolute/path/to/recovery-age-key.txt \
+     sops decrypt secrets/personal-workspace/production.sops.yaml >/dev/null
+   SOPS_AGE_KEY_FILE=/absolute/path/to/recovery-age-key.txt \
+     sops decrypt secrets/competency-trainer/production.sops.yaml >/dev/null
+   ```
+
+6. Commit `.sops.yaml` and the three encrypted documents. After a successful production deploy,
+   remove the temporary plaintext bootstrap sources. Retain only the two private age identities in
+   their protected locations and the deployment transport values in GitHub.
+
+Both public recipients in `.sops.yaml` can decrypt every document. This allows production startup
+and offline recovery independently; losing the server identity does not destroy the secrets.
 
 ## TLS
 
@@ -143,21 +255,21 @@ the candidate release before `current` exists. After the first successful deploy
 expand the certificate manually with:
 
 ```bash
-make -C /srv/alittlemore-infra/current certbot-issue
+make -C /srv/alittlemore-dev/current certbot-issue
 ```
 
 If nginx is running, the command uses its ACME webroot. On the first deployment it uses Certbot's
 standalone listener, so host port 80 must be free. Routine renewal should be scheduled by the host:
 
 ```bash
-make -C /srv/alittlemore-infra/current certbot-renew
+make -C /srv/alittlemore-dev/current certbot-renew
 ```
 
 To validate and activate an existing renewed certificate in the unprivileged nginx bind mount,
 syntax-check nginx, reload it, and verify the certificate it actually serves on loopback:
 
 ```bash
-make -C /srv/alittlemore-infra/current certbot-sync
+make -C /srv/alittlemore-dev/current certbot-sync
 ```
 
 ## Blue/green behavior and recovery
@@ -219,10 +331,11 @@ is outside this no-backward-compatibility cutover.
 Configure the single Databasus instance with both PostgreSQL sources:
 
 - Personal Workspace: host `personal-workspace-postgres`, port `5432`, database/user/password from
-  `PERSONAL_WORKSPACE_DB_NAME`, `PERSONAL_WORKSPACE_DB_USER`, and
-  `PERSONAL_WORKSPACE_DB_PASSWORD`.
+  `DB_NAME` and `DB_USER` in `config/personal-workspace/production.env`, plus `DB_PASSWORD` in
+  `secrets/personal-workspace/production.sops.yaml`.
 - Competency Trainer: host `competency-postgres`, port `5432`, database/user/password from
-  `COMPETENCY_DB_NAME`, `COMPETENCY_DB_USER`, and `COMPETENCY_DB_PASSWORD`.
+  `DB_NAME` and `DB_USER` in `config/competency-trainer/production.env`, plus `DB_PASSWORD` in
+  `secrets/competency-trainer/production.sops.yaml`.
 
 For an S3 backup destination use endpoint `http://minio:9000`, bucket `database-backups`, region
 from `MINIO_REGION`, and the `DATABASUS_MINIO_ACCESS_KEY` / `DATABASUS_MINIO_SECRET_KEY`
@@ -260,21 +373,23 @@ and issuing trees, and overwriting existing PKI files.
 ## Host requirements
 
 The server needs Linux/GNU coreutils (`readlink -f`, `stat -c`, and `mv -T`), Docker Engine with
-Docker Compose v2.24.0 or newer, `make`, Python 3, `curl`, OpenSSL, rsync, `flock` (normally from
-util-linux), SSH access, public DNS for all certificate names, and registry credentials when the
-application images are private. Docker should be enabled at boot so the configured restart
-policies take effect after a host reboot.
+Docker Compose v2.24.0 or newer, SOPS, `make`, Python 3, `curl`, OpenSSL, rsync, `flock` (normally
+from util-linux), SSH access, public DNS for all certificate names, and registry credentials when
+the application images are private. Docker should be enabled at boot so the configured restart
+policies take effect after a host reboot. The repository includes
+`infra/scripts/install_sops.sh` for installing the pinned Linux amd64 binary at an explicitly
+provided destination.
 
 `make run`, every TLS mutation, and `make stop` share an exclusive host-side runtime lock. This
 prevents an SSH timeout or a manually started command from racing a later deployment. `make stop`
-uses a non-secret minimal Compose environment, so it remains available even if `.env` or PKI is
-missing or invalid. Normal commands reject a symlinked, foreign-owned, group-readable, or
-world-readable `.env`; create it with mode `0600`. On the server, always invoke operational targets
-through the active payload, for example:
+uses a separate minimal Compose model, so it remains available even if tracked config,
+SOPS documents, or PKI are missing or invalid. Normal commands require a non-symlinked,
+deploy-user-owned age identity that is inaccessible to group and other users. On the server, always
+invoke operational targets through the active payload, for example:
 
 ```bash
-make -C /srv/alittlemore-infra/current run
-make -C /srv/alittlemore-infra/current stop
+make -C /srv/alittlemore-dev/current run
+make -C /srv/alittlemore-dev/current stop
 ```
 
 The `nginx` container uses `restart: always`; active application and dependency containers use
@@ -283,7 +398,8 @@ Docker can recover the edge without a Docker socket mount or privileged watchdog
 
 ## Quality gates
 
-The CI workflow runs these independently of deployment:
+The CI workflow installs checksum-pinned SOPS and age-keygen, exercises a real encrypt/decrypt
+round trip, and runs these independently of deployment:
 
 ```bash
 make tests
@@ -292,7 +408,7 @@ make lint-dockerfiles
 make security-trivy-config
 ```
 
-Run `make security-trivy-images` separately with a configured `.env` and registry login. It pulls
-the four application images, builds the pinned nginx, MinIO, and certificate-sync wrappers, and
-scans all twelve unique application and infrastructure runtime images for fixed high/critical OS
-and library vulnerabilities.
+Run `make security-trivy-images` separately with the tracked config, decryptable SOPS documents,
+and registry login. It pulls the four application images, builds the pinned nginx, MinIO, and
+certificate-sync wrappers, and scans all twelve unique application and infrastructure runtime
+images for fixed high/critical OS and library vulnerabilities.

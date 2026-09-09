@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -10,6 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 COMPOSE = ROOT / "docker-compose.yml"
 NGINX_TEMPLATE = ROOT / "infra/nginx/templates/site.conf.template"
 DEPLOY_WORKFLOW = ROOT / ".github/workflows/deploy.yml"
+SOPS_BOOTSTRAP_SCRIPT = ROOT / "infra/scripts/bootstrap_sops_secrets.sh"
 
 AGENT_LOCATIONS = {
     "location = /internal/agent/v1/matrix/question-claims {": "POST",
@@ -250,13 +253,56 @@ class EdgeSecurityContractTest(unittest.TestCase):
         sync = (ROOT / "infra/scripts/deploy_sync_payload.sh").read_text(encoding="utf-8")
         self.assertIn("bash infra/scripts/deploy_prepare_payload.sh", workflow)
         self.assertIn("bash infra/scripts/deploy_sync_payload.sh", workflow)
-        self.assertIn("cp -a .dockerignore Makefile docker-compose.yml infra/ .env .deploy-payload/", prepare)
+        self.assertIn(
+            "cp -a .dockerignore .sops.yaml Makefile docker-compose.yml config/ secrets/ infra/ .deploy-payload/",
+            prepare,
+        )
+        self.assertLess(
+            prepare.index("rm -rf -- .deploy-payload"),
+            prepare.index("mkdir -p .deploy-payload"),
+        )
+        self.assertNotIn(".env .deploy-payload/", prepare)
+        self.assertNotIn("GITHUB_ENV_VARS_JSON", workflow)
+        self.assertNotIn("GITHUB_SECRETS_JSON", workflow)
         for excluded in (
             "--exclude '.deploy-state'",
             "--exclude '.alittlemore-infra-deploy-root'",
             "--exclude 'infra/nginx/certs/'",
         ):
             self.assertIn(excluded, sync)
+
+    def test_sops_bootstrap_reads_local_scoped_files_without_github_secret_aliases(self) -> None:
+        bootstrap = SOPS_BOOTSTRAP_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("--platform-env", bootstrap)
+        self.assertIn("--personal-workspace-env", bootstrap)
+        self.assertIn("--competency-trainer-env", bootstrap)
+        self.assertIn("--age-recipient", bootstrap)
+        self.assertNotIn("GITHUB_SECRETS_JSON", bootstrap)
+        self.assertNotIn("source ", bootstrap)
+        self.assertNotIn("git push", bootstrap)
+        self.assertFalse((ROOT / ".github/workflows/migrate-secrets-to-sops.yml").exists())
+        self.assertFalse((ROOT / "infra/scripts/migrate_github_secrets_to_sops.sh").exists())
+        manifest = json.loads(
+            (ROOT / "infra/deploy/runtime-secrets.manifest.json").read_text(encoding="utf-8")
+        )
+        for document in manifest["documents"]:
+            for secret in document["secrets"]:
+                self.assertNotIn("githubName", secret)
+
+    def test_sops_bootstrap_reports_a_missing_option_value_as_usage_error(self) -> None:
+        result = subprocess.run(
+            ["bash", str(SOPS_BOOTSTRAP_SCRIPT), "--platform-env"],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("Usage:", result.stderr)
+        self.assertNotIn("shift count", result.stderr)
 
     def test_deploy_connection_is_serialized_and_pinned_before_use(self) -> None:
         workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")

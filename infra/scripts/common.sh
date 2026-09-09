@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-readonly REQUIRED_ENVIRONMENT_VARIABLES=(
+readonly REQUIRED_RUNTIME_ENVIRONMENT_VARIABLES=(
     IMAGE_REGISTRY
     PERSONAL_WORKSPACE_DOMAIN
     COMPETENCY_DOMAIN
@@ -11,81 +11,14 @@ readonly REQUIRED_ENVIRONMENT_VARIABLES=(
     SSL_CERT
     SSL_KEY
     VPN_BIND_ADDRESS
-    MINIO_ROOT_ACCESS_KEY
-    MINIO_ROOT_SECRET_KEY
     MINIO_REGION
     MINIO_CORS_MAX_AGE_SECONDS
-    DATABASUS_MINIO_ACCESS_KEY
-    DATABASUS_MINIO_SECRET_KEY
-    PERSONAL_WORKSPACE_APP_DEBUG
-    PERSONAL_WORKSPACE_APP_SECRET_KEY
-    PERSONAL_WORKSPACE_APP_USE_CACHE
-    PERSONAL_WORKSPACE_AUTH_SESSION_TTL_SECONDS
-    PERSONAL_WORKSPACE_FILES_ORPHAN_RETENTION_SECONDS
-    PERSONAL_WORKSPACE_I18N_DEFAULT_LANGUAGE
-    PERSONAL_WORKSPACE_OWNER_USERNAME
-    PERSONAL_WORKSPACE_OWNER_PASSWORD_HASH
-    PERSONAL_WORKSPACE_SENTRY_USE
-    PERSONAL_WORKSPACE_TASKIQ_CACHE_WARM_INTERVAL_SECONDS
-    PERSONAL_WORKSPACE_TASKIQ_FILE_ORPHAN_PRUNE_INTERVAL_SECONDS
-    PERSONAL_WORKSPACE_TASKIQ_RESULT_EXPIRE_SECONDS
     PERSONAL_WORKSPACE_DB_USER
-    PERSONAL_WORKSPACE_DB_PASSWORD
-    PERSONAL_WORKSPACE_DB_DRIVER
     PERSONAL_WORKSPACE_DB_NAME
-    PERSONAL_WORKSPACE_DB_POOL_PRE_PING
-    PERSONAL_WORKSPACE_DB_POOL_SIZE
-    PERSONAL_WORKSPACE_DB_MAX_OVERFLOW
-    PERSONAL_WORKSPACE_DB_EXPIRE_ON_COMMIT
-    PERSONAL_WORKSPACE_DB_LOG_QUERY_METRICS
-    PERSONAL_WORKSPACE_DB_SLOW_QUERY_LOG_THRESHOLD_MS
-    PERSONAL_WORKSPACE_DB_SLOW_QUERY_LOG_STATEMENT_MAX_LENGTH
-    PERSONAL_WORKSPACE_MINIO_SECRET_KEY
-    PERSONAL_WORKSPACE_MINIO_ACCESS_KEY
-    COMPETENCY_APP_CONTACT_REQUESTS_ENABLED
-    COMPETENCY_APP_DEBUG
-    COMPETENCY_APP_SECRET_KEY
-    COMPETENCY_APP_USE_CACHE
     COMPETENCY_AUTH_PUBLIC_KEY
-    COMPETENCY_AUTH_PRIVATE_KEY
-    COMPETENCY_AUTH_TOKEN_EXPIRE_SECONDS
-    COMPETENCY_AUTH_SESSION_EXPIRE_SECONDS
-    COMPETENCY_AUTH_SESSION_ABSOLUTE_EXPIRE_SECONDS
-    COMPETENCY_AUTH_TOKEN_HEADER_NAME
-    COMPETENCY_AUTH_TOKEN_PREFIX
-    COMPETENCY_CACHE_WARM_ARTICLES_PAGE_SIZE
-    COMPETENCY_MATRIX_QUESTION_SUGGESTION_ANONYMOUS_DAILY_LIMIT
-    COMPETENCY_FILES_ORPHAN_RETENTION_SECONDS
-    COMPETENCY_I18N_DEFAULT_LANGUAGE
-    COMPETENCY_OWNER_INIT_LOGIN
-    COMPETENCY_OWNER_INIT_PASSWORD
-    COMPETENCY_SENTRY_USE
-    COMPETENCY_TASKIQ_AUTH_SESSION_PRUNE_INTERVAL_SECONDS
-    COMPETENCY_TASKIQ_AGENT_AUDIT_PRUNE_INTERVAL_SECONDS
-    COMPETENCY_TASKIQ_CACHE_WARM_INTERVAL_SECONDS
-    COMPETENCY_TASKIQ_FILE_ORPHAN_PRUNE_INTERVAL_SECONDS
-    COMPETENCY_TASKIQ_RESULT_EXPIRE_SECONDS
     COMPETENCY_DB_USER
-    COMPETENCY_DB_PASSWORD
-    COMPETENCY_DB_DRIVER
     COMPETENCY_DB_NAME
-    COMPETENCY_DB_POOL_PRE_PING
-    COMPETENCY_DB_POOL_SIZE
-    COMPETENCY_DB_MAX_OVERFLOW
-    COMPETENCY_DB_EXPIRE_ON_COMMIT
-    COMPETENCY_DB_LOG_QUERY_METRICS
-    COMPETENCY_DB_SLOW_QUERY_LOG_THRESHOLD_MS
-    COMPETENCY_DB_SLOW_QUERY_LOG_STATEMENT_MAX_LENGTH
-    COMPETENCY_MINIO_SECRET_KEY
-    COMPETENCY_MINIO_ACCESS_KEY
-    COMPETENCY_AGENT_ACCESS_ISSUING_CERTIFICATE
-    COMPETENCY_AGENT_ACCESS_ISSUING_PRIVATE_KEY
-    COMPETENCY_AGENT_ACCESS_CERTIFICATE_CHAIN
-)
-
-readonly ALLOW_EMPTY_ENVIRONMENT_VARIABLES=(
-    PERSONAL_WORKSPACE_SENTRY_DSN
-    COMPETENCY_SENTRY_DSN
+    SOPS_AGE_KEY_FILE
 )
 
 require_command() {
@@ -101,16 +34,7 @@ require_env() {
     local variable_name="$1"
 
     if [ -z "${!variable_name:-}" ]; then
-        echo "${variable_name} must be set and non-empty in .env." >&2
-        exit 1
-    fi
-}
-
-require_env_set() {
-    local variable_name="$1"
-
-    if [ "${!variable_name+x}" != "x" ]; then
-        echo "${variable_name} must be present in .env; an empty value is allowed." >&2
+        echo "${variable_name} must be set and non-empty in generated runtime config." >&2
         exit 1
     fi
 }
@@ -194,6 +118,23 @@ runtime_state_directory() {
     printf '%s\n' "${runtime_root}/.deploy-state"
 }
 
+prepare_runtime_state_directory() {
+    local state_directory
+
+    state_directory="$(runtime_state_directory)"
+    if [ -L "$state_directory" ] || { [ -e "$state_directory" ] && [ ! -d "$state_directory" ]; }; then
+        echo "Runtime state path must be a real directory: ${state_directory}." >&2
+        exit 1
+    fi
+    mkdir -p "$state_directory"
+    if [ ! -O "$state_directory" ]; then
+        echo "Runtime state directory must be owned by the current user." >&2
+        exit 1
+    fi
+    chmod 700 "$state_directory"
+    printf '%s\n' "$state_directory"
+}
+
 prepare_certificate_mount_directory() {
     local certificate_directory="${repo_dir}/infra/nginx/certs"
     local expected_directory
@@ -254,16 +195,10 @@ acquire_runtime_lock() {
     local state_directory
     local lock_file
 
-    state_directory="$(runtime_state_directory)"
+    state_directory="$(prepare_runtime_state_directory)"
     lock_file="${state_directory}/runtime.lock"
 
     require_command flock
-    if [ -L "$state_directory" ] || { [ -e "$state_directory" ] && [ ! -d "$state_directory" ]; }; then
-        echo "Runtime state path must be a real directory: ${state_directory}." >&2
-        exit 1
-    fi
-    mkdir -p "$state_directory"
-    chmod 700 "$state_directory"
     if [ -L "$lock_file" ] || { [ -e "$lock_file" ] && [ ! -f "$lock_file" ]; }; then
         echo "Runtime lock path must be a regular file: ${lock_file}." >&2
         exit 1
@@ -286,7 +221,8 @@ acquire_runtime_lock() {
 
 pin_compose_identity() {
     export COMPOSE_PROJECT_NAME=alittlemore-infra
-    unset COMPOSE_FILE COMPOSE_PROFILES
+    export COMPOSE_DISABLE_ENV_FILE=1
+    unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES
 }
 
 load_environment() {
@@ -294,27 +230,29 @@ load_environment() {
         echo "repo_dir must be set before sourcing common.sh." >&2
         exit 1
     fi
+    local runtime_environment_file
+    local state_directory
+    local variable_name
+
     require_command python3
-    if [ ! -e "${repo_dir}/.env" ]; then
-        echo ".env file could not be found. Install .env.example as an owner-only .env and set every value." >&2
-        exit 1
-    fi
-    if ! python3 "${repo_dir}/infra/scripts/validate_private_file.py" "${repo_dir}/.env"; then
-        echo ".env must be an owner-only regular file owned by the deploy user." >&2
+    state_directory="$(prepare_runtime_state_directory)"
+    runtime_environment_file="${state_directory}/runtime.env"
+    python3 "${repo_dir}/infra/scripts/render_runtime_config.py" \
+        --manifest "${repo_dir}/infra/deploy/runtime-config.manifest.json" \
+        --repo-dir "$repo_dir" \
+        --output "$runtime_environment_file"
+    if ! python3 "${repo_dir}/infra/scripts/validate_private_file.py" "$runtime_environment_file"; then
+        echo "Generated runtime environment must be owner-only and owned by the deploy user." >&2
         exit 1
     fi
 
     set -a
-    # shellcheck disable=SC1091
-    . "${repo_dir}/.env"
+    # shellcheck disable=SC1090
+    . "$runtime_environment_file"
     set +a
 
-    local variable_name
-    for variable_name in "${REQUIRED_ENVIRONMENT_VARIABLES[@]}"; do
+    for variable_name in "${REQUIRED_RUNTIME_ENVIRONMENT_VARIABLES[@]}"; do
         require_env "$variable_name"
-    done
-    for variable_name in "${ALLOW_EMPTY_ENVIRONMENT_VARIABLES[@]}"; do
-        require_env_set "$variable_name"
     done
 
     if [[ ! "$IMAGE_REGISTRY" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$ ]]; then
@@ -350,32 +288,8 @@ load_environment() {
         echo "SSL_CERT and SSL_KEY must be distinct normalized absolute paths." >&2
         exit 1
     fi
-    require_distinct_values \
-        "MinIO access-key identities" \
-        "$MINIO_ROOT_ACCESS_KEY" \
-        "$PERSONAL_WORKSPACE_MINIO_ACCESS_KEY" \
-        "$COMPETENCY_MINIO_ACCESS_KEY" \
-        "$DATABASUS_MINIO_ACCESS_KEY"
-    local minio_secret_variable_name
-    local minio_secret_value
-    for minio_secret_variable_name in \
-        MINIO_ROOT_SECRET_KEY \
-        PERSONAL_WORKSPACE_MINIO_SECRET_KEY \
-        COMPETENCY_MINIO_SECRET_KEY \
-        DATABASUS_MINIO_SECRET_KEY; do
-        minio_secret_value="${!minio_secret_variable_name}"
-        if [ "${#minio_secret_value}" -lt 8 ]; then
-            echo "${minio_secret_variable_name} must contain at least eight characters." >&2
-            exit 1
-        fi
-    done
-    if [ "$MINIO_ROOT_SECRET_KEY" = "$PERSONAL_WORKSPACE_MINIO_SECRET_KEY" ] \
-        || [ "$MINIO_ROOT_SECRET_KEY" = "$COMPETENCY_MINIO_SECRET_KEY" ] \
-        || [ "$MINIO_ROOT_SECRET_KEY" = "$DATABASUS_MINIO_SECRET_KEY" ] \
-        || [ "$PERSONAL_WORKSPACE_MINIO_SECRET_KEY" = "$COMPETENCY_MINIO_SECRET_KEY" ] \
-        || [ "$PERSONAL_WORKSPACE_MINIO_SECRET_KEY" = "$DATABASUS_MINIO_SECRET_KEY" ] \
-        || [ "$COMPETENCY_MINIO_SECRET_KEY" = "$DATABASUS_MINIO_SECRET_KEY" ]; then
-        echo "MinIO secret keys must all be different." >&2
+    if ! is_safe_absolute_path "$SOPS_AGE_KEY_FILE"; then
+        echo "SOPS_AGE_KEY_FILE must be a normalized absolute path outside deployment releases." >&2
         exit 1
     fi
     python3 "${repo_dir}/infra/scripts/validate_network.py" "$VPN_BIND_ADDRESS"

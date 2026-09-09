@@ -10,6 +10,12 @@ COMPOSE = ROOT / "docker-compose.yml"
 
 
 class CertificateContractTest(unittest.TestCase):
+    def test_public_config_uses_the_atomic_certificate_release(self) -> None:
+        platform_config = (ROOT / "config/platform/production.env").read_text(encoding="utf-8")
+
+        self.assertIn("SSL_CERT=/certs/current/fullchain.pem", platform_config)
+        self.assertIn("SSL_KEY=/certs/current/privkey.pem", platform_config)
+
     def test_authentication_public_and_private_keys_must_match(self) -> None:
         script = (ROOT / "infra/scripts/compose_secrets.sh").read_text(encoding="utf-8")
         self.assertIn('printf \'%b\' "$COMPETENCY_AUTH_PUBLIC_KEY"', script)

@@ -2,6 +2,6 @@
 set -euo pipefail
 
 umask 077
+rm -rf -- .deploy-payload
 mkdir -p .deploy-payload
-cp -a .dockerignore Makefile docker-compose.yml infra/ .env .deploy-payload/
-chmod 600 .deploy-payload/.env
+cp -a .dockerignore .sops.yaml Makefile docker-compose.yml config/ secrets/ infra/ .deploy-payload/

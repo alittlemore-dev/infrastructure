@@ -12,41 +12,36 @@ python3 -m json.tool infra/minio/policies/personal-workspace.json >/dev/null
 python3 -m json.tool infra/minio/policies/competency-trainer.json >/dev/null
 python3 -m json.tool infra/minio/policies/databasus.json >/dev/null
 
-python3 infra/scripts/render_deploy_env.py \
-    --manifest infra/deploy/runtime-env.manifest.json \
+python3 infra/scripts/render_runtime_config.py \
+    --manifest infra/deploy/runtime-config.manifest.json \
+    --repo-dir . \
     --validate-only
+python3 -m json.tool infra/deploy/runtime-secrets.manifest.json >/dev/null
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 
+runtime_environment_file="$(mktemp)"
+trap 'rm -f "$runtime_environment_file"' EXIT
+python3 infra/scripts/render_runtime_config.py \
+    --manifest infra/deploy/runtime-config.manifest.json \
+    --repo-dir . \
+    --output "$runtime_environment_file"
 set -a
-# shellcheck disable=SC1091
-. .env.example
+# shellcheck disable=SC1090
+. "$runtime_environment_file"
 set +a
 
 export PERSONAL_WORKSPACE_ACTIVE_BACKEND=personal-workspace-backend-blue
 export PERSONAL_WORKSPACE_ACTIVE_FRONTEND=personal-workspace-frontend-blue
 export COMPETENCY_ACTIVE_BACKEND=competency-backend-blue
 export COMPETENCY_ACTIVE_FRONTEND=competency-frontend-blue
-export COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE=/dev/null
-export COMPOSE_MINIO_ROOT_SECRET_KEY_FILE=/dev/null
-export COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE=/dev/null
-export COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE=/dev/null
-export COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE=/dev/null
-export COMPOSE_PERSONAL_WORKSPACE_DB_PASSWORD_FILE=/dev/null
-export COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE=/dev/null
-export COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE=/dev/null
-export COMPOSE_PERSONAL_WORKSPACE_OWNER_PASSWORD_HASH_FILE=/dev/null
-export COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE=/dev/null
-export COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE=/dev/null
-export COMPOSE_COMPETENCY_AUTH_PRIVATE_KEY_FILE=/dev/null
-export COMPOSE_COMPETENCY_DB_PASSWORD_FILE=/dev/null
-export COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE=/dev/null
-export COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE=/dev/null
-export COMPOSE_COMPETENCY_OWNER_INIT_PASSWORD_FILE=/dev/null
-export COMPOSE_COMPETENCY_SENTRY_DSN_FILE=/dev/null
-export COMPOSE_COMPETENCY_AGENT_ISSUING_CERTIFICATE_FILE=/dev/null
-export COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE=/dev/null
-export COMPOSE_COMPETENCY_AGENT_CERTIFICATE_CHAIN_FILE=/dev/null
+while IFS= read -r compose_secret_variable; do
+    export "$compose_secret_variable=/dev/null"
+done < <(
+    python3 infra/scripts/list_compose_secret_variables.py \
+        infra/deploy/runtime-secrets.manifest.json
+)
 export COMPOSE_PROJECT_NAME=alittlemore-infra
-unset COMPOSE_FILE COMPOSE_PROFILES
+export COMPOSE_DISABLE_ENV_FILE=1
+unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES
 
-docker compose --env-file .env.example config --quiet
+docker compose --env-file /dev/null config --quiet

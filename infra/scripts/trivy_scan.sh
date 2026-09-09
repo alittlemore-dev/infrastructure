@@ -47,7 +47,7 @@ case "$action" in
         # shellcheck source=infra/scripts/compose_secrets.sh
         . "$script_dir/compose_secrets.sh"
         load_environment
-        prepare_compose_secret_files
+        prepare_compose_secret_files scan
         docker compose build minio nginx cert-sync
         docker pull "${IMAGE_REGISTRY}/personal-workspace-backend:latest"
         docker pull "${IMAGE_REGISTRY}/personal-workspace-frontend:latest"

@@ -75,7 +75,7 @@ require_docker_compose
 require_command openssl
 acquire_runtime_lock
 load_environment
-prepare_compose_secret_files
+prepare_compose_secret_files maintenance
 
 case "$action" in
     issue) issue_certificates ;;

@@ -101,11 +101,19 @@ activate_remote_payload() {
         rm -rf -- "$stale_stage"
     done < <(find "$state_path" -mindepth 1 -maxdepth 1 -type d -name 'incoming-*' -print)
 
-    [ -f "$stage_path/.env" ]
-    [ ! -L "$stage_path/.env" ]
-    [ "$(stat -c '%U' "$stage_path/.env")" = "$(id -un)" ]
-    [ "$(stat -c '%a' "$stage_path/.env")" = "600" ]
-    for required_path in Makefile docker-compose.yml infra/scripts/run.sh; do
+    for required_path in \
+        .sops.yaml \
+        Makefile \
+        docker-compose.yml \
+        config/platform/production.env \
+        config/personal-workspace/production.env \
+        config/competency-trainer/production.env \
+        secrets/platform/production.sops.yaml \
+        secrets/personal-workspace/production.sops.yaml \
+        secrets/competency-trainer/production.sops.yaml \
+        infra/deploy/runtime-config.manifest.json \
+        infra/deploy/runtime-secrets.manifest.json \
+        infra/scripts/run.sh; do
         [ -f "$stage_path/$required_path" ]
         [ ! -L "$stage_path/$required_path" ]
     done
