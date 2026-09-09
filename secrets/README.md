@@ -21,3 +21,7 @@ service-scoped runtime targets.
 
 Never store decrypted documents, age private identities, or materialized runtime secret files in
 this repository.
+
+For routine updates, adding new secret fields, rotation constraints, and the mandatory protocol for
+AI agents, see the **Updating an existing secret**, **Adding a new secret**, **Rotation
+constraints**, and **Instructions for AI agents** sections in `docs/production-deploy.md`.
