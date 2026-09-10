@@ -2,8 +2,7 @@
 
 readonly REQUIRED_RUNTIME_ENVIRONMENT_VARIABLES=(
     IMAGE_REGISTRY
-    PERSONAL_WORKSPACE_DOMAIN
-    COMPETENCY_DOMAIN
+    APP_DOMAIN
     MINIO_DOMAIN
     APP_URL_SCHEMA
     LE_EMAIL
@@ -261,8 +260,7 @@ load_environment() {
     fi
     local domain_name
     for domain_name in \
-        "$PERSONAL_WORKSPACE_DOMAIN" \
-        "$COMPETENCY_DOMAIN" \
+        "$APP_DOMAIN" \
         "$MINIO_DOMAIN"; do
         if ! is_dns_hostname "$domain_name"; then
             echo "Public application domains must be valid DNS hostnames." >&2
@@ -271,8 +269,7 @@ load_environment() {
     done
     require_distinct_values \
         "Public application domains" \
-        "$PERSONAL_WORKSPACE_DOMAIN" \
-        "$COMPETENCY_DOMAIN" \
+        "$APP_DOMAIN" \
         "$MINIO_DOMAIN"
     if [ "$APP_URL_SCHEMA" != "https" ]; then
         echo "APP_URL_SCHEMA must be https for this production-oriented stack." >&2

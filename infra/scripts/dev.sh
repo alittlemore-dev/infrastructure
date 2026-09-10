@@ -91,10 +91,9 @@ smoke_local_edge() {
     local path
     local attempt
     local -a checks=(
-        "personal-workspace.localhost|/api/healthcheck"
-        "personal-workspace.localhost|/healthz"
-        "competency.localhost|/api/healthcheck"
-        "competency.localhost|/healthz"
+        "alittlemore.localhost|/healthz"
+        "alittlemore.localhost|/api/personal-workspace/healthcheck"
+        "alittlemore.localhost|/api/competency/healthcheck"
         "s3.localhost|/minio/health/live"
     )
 
@@ -142,9 +141,7 @@ bash "${script_dir}/dev_tls.sh" verify
 compose config --quiet
 compose build \
     personal-workspace-backend-blue \
-    personal-workspace-frontend-blue \
     competency-backend-blue \
-    competency-frontend-blue \
     minio \
     nginx
 prepare_owner_password_hash
@@ -162,18 +159,17 @@ compose_up_wait never \
     --no-deps \
     --force-recreate \
     personal-workspace-backend-blue \
-    personal-workspace-frontend-blue \
     personal-workspace-taskiq-worker-blue \
     personal-workspace-taskiq-scheduler-blue \
     competency-backend-blue \
-    competency-frontend-blue \
     competency-taskiq-worker-blue \
     competency-taskiq-scheduler-blue \
     nginx
 smoke_local_edge
 
 printf '\nLocal integration stack is ready:\n'
-printf '  Personal Workspace: https://personal-workspace.localhost\n'
-printf '  Competency Trainer: https://competency.localhost\n'
+printf '  Application edge: https://alittlemore.localhost\n'
+printf '  Personal Workspace API: https://alittlemore.localhost/api/personal-workspace/\n'
+printf '  Competency Trainer API: https://alittlemore.localhost/api/competency/\n'
 printf '  MinIO API: https://s3.localhost\n\n'
 cat "${state_dir}/credentials"

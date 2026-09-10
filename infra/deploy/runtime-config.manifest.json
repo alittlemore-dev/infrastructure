@@ -6,6 +6,7 @@
       "variables": [
         "IMAGE_REGISTRY",
         "APP_URL_SCHEMA",
+        "APP_DOMAIN",
         "LE_EMAIL",
         "TLS_CERTIFICATE_NAME",
         "SSL_CERT",
@@ -19,6 +20,7 @@
       "runtimeAliases": {
         "IMAGE_REGISTRY": "IMAGE_REGISTRY",
         "APP_URL_SCHEMA": "APP_URL_SCHEMA",
+        "APP_DOMAIN": "APP_DOMAIN",
         "LE_EMAIL": "LE_EMAIL",
         "TLS_CERTIFICATE_NAME": "TLS_CERTIFICATE_NAME",
         "SSL_CERT": "SSL_CERT",
@@ -57,7 +59,6 @@
         "DB_SLOW_QUERY_LOG_STATEMENT_MAX_LENGTH"
       ],
       "runtimeAliases": {
-        "APP_DOMAIN": "PERSONAL_WORKSPACE_DOMAIN",
         "DB_USER": "PERSONAL_WORKSPACE_DB_USER",
         "DB_NAME": "PERSONAL_WORKSPACE_DB_NAME"
       }
@@ -99,7 +100,6 @@
         "DB_SLOW_QUERY_LOG_STATEMENT_MAX_LENGTH"
       ],
       "runtimeAliases": {
-        "APP_DOMAIN": "COMPETENCY_DOMAIN",
         "AUTH_PUBLIC_KEY": "COMPETENCY_AUTH_PUBLIC_KEY",
         "DB_USER": "COMPETENCY_DB_USER",
         "DB_NAME": "COMPETENCY_DB_NAME"

@@ -21,19 +21,9 @@ upstream personal_workspace_backend {
     server ${PERSONAL_WORKSPACE_ACTIVE_BACKEND}:8080 resolve;
 }
 
-upstream personal_workspace_frontend {
-    zone personal_workspace_frontend_zone 64k;
-    server ${PERSONAL_WORKSPACE_ACTIVE_FRONTEND}:4000 resolve;
-}
-
 upstream competency_backend {
     zone competency_backend_zone 64k;
     server ${COMPETENCY_ACTIVE_BACKEND}:8080 resolve;
-}
-
-upstream competency_frontend {
-    zone competency_frontend_zone 64k;
-    server ${COMPETENCY_ACTIVE_FRONTEND}:4000 resolve;
 }
 
 upstream minio_api {
@@ -67,8 +57,7 @@ server {
 server {
     listen 8080;
     server_name
-        ${PERSONAL_WORKSPACE_DOMAIN}
-        ${COMPETENCY_DOMAIN}
+        ${APP_DOMAIN}
         ${MINIO_DOMAIN};
 
     location /.well-known/acme-challenge/ {
@@ -82,7 +71,7 @@ server {
 
 server {
     listen 8080;
-    server_name agent.${COMPETENCY_DOMAIN};
+    server_name agent.${APP_DOMAIN};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -110,7 +99,7 @@ server {
 server {
     listen 8443 ssl;
     http2 on;
-    server_name ${PERSONAL_WORKSPACE_DOMAIN};
+    server_name ${APP_DOMAIN};
 
     ssl_certificate ${SSL_CERT};
     ssl_certificate_key ${SSL_KEY};
@@ -132,32 +121,119 @@ server {
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection $connection_upgrade;
     proxy_set_header X-CSP-Nonce $request_id;
+    proxy_set_header X-Agent-Client-Certificate "";
     proxy_read_timeout 300;
     proxy_send_timeout 300;
 
-    location ^~ /api/docs {
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "";
+    }
+
+    location ^~ /internal/agent/v1 {
+        return 404;
+    }
+
+    location ^~ /api/personal-workspace/docs {
         limit_req zone=personal_api_per_ip burst=120 nodelay;
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "no-referrer" always;
         add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: ${MINIO_PUBLIC_URL} https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' ${MINIO_PUBLIC_URL}; upgrade-insecure-requests" always;
-        proxy_pass http://personal_workspace_backend;
+        proxy_redirect ~^https?://[^/]+/api/(.*)$ $scheme://$host/api/personal-workspace/$1;
+        proxy_redirect ~^/api/(.*)$ /api/personal-workspace/$1;
+        proxy_pass http://personal_workspace_backend/api/docs;
     }
 
-    location = /api/auth/login {
+    location = /api/personal-workspace/auth/login {
         limit_req zone=personal_login_per_ip burst=5 nodelay;
         limit_req zone=personal_api_per_ip burst=60 nodelay;
-        proxy_pass http://personal_workspace_backend;
+        proxy_pass http://personal_workspace_backend/api/auth/login;
     }
 
-    location /api/ {
+    location ^~ /api/personal-workspace/ {
         limit_req zone=personal_api_per_ip burst=120 nodelay;
+        proxy_redirect ~^https?://[^/]+/api/(.*)$ $scheme://$host/api/personal-workspace/$1;
+        proxy_redirect ~^/api/(.*)$ /api/personal-workspace/$1;
         proxy_pass http://personal_workspace_backend/api/;
     }
 
+    location = /api/competency/auth/login {
+        limit_req zone=competency_login_per_ip burst=5 nodelay;
+        proxy_cookie_path /api/auth /api/competency/auth;
+        proxy_pass http://competency_backend/api/auth/login;
+    }
+
+    location = /api/competency/auth/refresh {
+        limit_req zone=competency_auth_refresh_per_ip burst=30 nodelay;
+        proxy_cookie_path /api/auth /api/competency/auth;
+        proxy_pass http://competency_backend/api/auth/refresh;
+    }
+
+    location = /api/competency/contacts {
+        limit_req zone=competency_contact_per_ip burst=3 nodelay;
+        proxy_pass http://competency_backend/api/contacts;
+    }
+
+    location = /api/competency/competency-matrix/question-suggestions {
+        limit_req zone=competency_matrix_suggestion_per_ip burst=5 nodelay;
+        proxy_pass http://competency_backend/api/competency-matrix/question-suggestions;
+    }
+
+    location ^~ /api/competency/docs {
+        limit_req zone=competency_api_per_ip burst=120 nodelay;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: ${MINIO_PUBLIC_URL} https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' ${MINIO_PUBLIC_URL}; upgrade-insecure-requests" always;
+        proxy_redirect ~^https?://[^/]+/api/(.*)$ $scheme://$host/api/competency/$1;
+        proxy_redirect ~^/api/(.*)$ /api/competency/$1;
+        proxy_pass http://competency_backend/api/docs;
+    }
+
+    location = /api/competency/articles {
+        limit_req zone=competency_heavy_read_per_ip burst=30 nodelay;
+        proxy_pass http://competency_backend/api/articles;
+    }
+
+    location = /api/competency/admin/articles/tags/search {
+        limit_req zone=competency_heavy_read_per_ip burst=30 nodelay;
+        proxy_pass http://competency_backend/api/admin/articles/tags/search;
+    }
+
+    location = /api/competency/admin/competency-matrix/resources/search {
+        limit_req zone=competency_heavy_read_per_ip burst=30 nodelay;
+        proxy_pass http://competency_backend/api/admin/competency-matrix/resources/search;
+    }
+
+    location ^~ /api/competency/ {
+        limit_req zone=competency_api_per_ip burst=120 nodelay;
+        proxy_cookie_path /api/auth /api/competency/auth;
+        proxy_redirect ~^https?://[^/]+/api/(.*)$ $scheme://$host/api/competency/$1;
+        proxy_redirect ~^/api/(.*)$ /api/competency/$1;
+        proxy_pass http://competency_backend/api/;
+    }
+
+    location /api/ {
+        return 404;
+    }
+
+    location = /sitemap.xml {
+        proxy_pass http://competency_backend/sitemap.xml;
+    }
+
+    location = /robots.txt {
+        proxy_pass http://competency_backend/robots.txt;
+    }
+
+    # The unified SPA image does not exist yet. Keep the edge deployable and
+    # reserve every non-API route for that single frontend when it is added.
     location / {
-        proxy_pass http://personal_workspace_frontend;
+        add_header Retry-After "60" always;
+        return 503;
     }
 }
 
@@ -211,103 +287,7 @@ server {
 server {
     listen 8443 ssl;
     http2 on;
-    server_name ${COMPETENCY_DOMAIN};
-
-    ssl_certificate ${SSL_CERT};
-    ssl_certificate_key ${SSL_KEY};
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
-    ssl_protocols TLSv1.2 TLSv1.3;
-
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header Referrer-Policy "no-referrer" always;
-    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: ${MINIO_PUBLIC_URL}; font-src 'self' data:; style-src 'self' 'nonce-$request_id'; script-src 'self' 'nonce-$request_id'; script-src-attr 'none'; connect-src 'self' ${MINIO_PUBLIC_URL}; upgrade-insecure-requests" always;
-
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade;
-    proxy_set_header X-CSP-Nonce $request_id;
-    proxy_set_header X-Agent-Client-Certificate "";
-    proxy_read_timeout 300;
-    proxy_send_timeout 300;
-
-    location ^~ /internal/agent/v1 {
-        return 404;
-    }
-
-    location = /api/auth/login {
-        limit_req zone=competency_login_per_ip burst=5 nodelay;
-        proxy_pass http://competency_backend/api/auth/login;
-    }
-
-    location = /api/auth/refresh {
-        limit_req zone=competency_auth_refresh_per_ip burst=30 nodelay;
-        proxy_pass http://competency_backend/api/auth/refresh;
-    }
-
-    location = /api/contacts {
-        limit_req zone=competency_contact_per_ip burst=3 nodelay;
-        proxy_pass http://competency_backend/api/contacts;
-    }
-
-    location = /api/competency-matrix/question-suggestions {
-        limit_req zone=competency_matrix_suggestion_per_ip burst=5 nodelay;
-        proxy_pass http://competency_backend/api/competency-matrix/question-suggestions;
-    }
-
-    location ^~ /api/docs {
-        limit_req zone=competency_api_per_ip burst=120 nodelay;
-        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-        add_header X-Content-Type-Options "nosniff" always;
-        add_header X-Frame-Options "DENY" always;
-        add_header Referrer-Policy "no-referrer" always;
-        add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: ${MINIO_PUBLIC_URL} https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' ${MINIO_PUBLIC_URL}; upgrade-insecure-requests" always;
-        proxy_pass http://competency_backend;
-    }
-
-    location = /api/articles {
-        limit_req zone=competency_heavy_read_per_ip burst=30 nodelay;
-        proxy_pass http://competency_backend/api/articles;
-    }
-
-    location = /api/admin/articles/tags/search {
-        limit_req zone=competency_heavy_read_per_ip burst=30 nodelay;
-        proxy_pass http://competency_backend/api/admin/articles/tags/search;
-    }
-
-    location = /api/admin/competency-matrix/resources/search {
-        limit_req zone=competency_heavy_read_per_ip burst=30 nodelay;
-        proxy_pass http://competency_backend/api/admin/competency-matrix/resources/search;
-    }
-
-    location /api/ {
-        limit_req zone=competency_api_per_ip burst=120 nodelay;
-        proxy_pass http://competency_backend/api/;
-    }
-
-    location = /sitemap.xml {
-        proxy_pass http://competency_backend/sitemap.xml;
-    }
-
-    location = /robots.txt {
-        proxy_pass http://competency_backend/robots.txt;
-    }
-
-    location / {
-        proxy_pass http://competency_frontend;
-    }
-}
-
-server {
-    listen 8443 ssl;
-    http2 on;
-    server_name agent.${COMPETENCY_DOMAIN};
+    server_name agent.${APP_DOMAIN};
 
     ssl_certificate ${SSL_CERT};
     ssl_certificate_key ${SSL_KEY};
@@ -369,7 +349,7 @@ server {
 
 server {
     listen 18083 ssl;
-    server_name agent.${COMPETENCY_DOMAIN};
+    server_name agent.${APP_DOMAIN};
 
     ssl_certificate ${SSL_CERT};
     ssl_certificate_key ${SSL_KEY};

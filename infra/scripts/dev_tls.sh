@@ -43,14 +43,14 @@ verify_trust() {
                 -q \
                 -L \
                 -p ssl \
-                -n personal-workspace.localhost \
+                -n alittlemore.localhost \
                 -c "$server_certificate" >/dev/null 2>&1
             ;;
         Linux)
             require_command openssl
             openssl verify \
                 -purpose sslserver \
-                -verify_hostname personal-workspace.localhost \
+                -verify_hostname alittlemore.localhost \
                 "$server_certificate" >/dev/null 2>&1
             ;;
         *)

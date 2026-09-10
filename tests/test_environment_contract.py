@@ -137,10 +137,8 @@ class EnvironmentContractTest(unittest.TestCase):
         )
         generated = {
             "PERSONAL_WORKSPACE_ACTIVE_BACKEND",
-            "PERSONAL_WORKSPACE_ACTIVE_FRONTEND",
             "PERSONAL_WORKSPACE_ENV_FILE",
             "COMPETENCY_ACTIVE_BACKEND",
-            "COMPETENCY_ACTIVE_FRONTEND",
             "COMPETENCY_ENV_FILE",
             "NGINX_IMAGE",
         }
@@ -165,6 +163,8 @@ class EnvironmentContractTest(unittest.TestCase):
         )
         self.assertNotIn("${PERSONAL_WORKSPACE_APP_DEBUG}", personal_anchor)
         self.assertNotIn("${COMPETENCY_APP_DEBUG}", competency_anchor)
+        self.assertIn("APP_DOMAIN: ${APP_DOMAIN}", personal_anchor)
+        self.assertIn("APP_DOMAIN: ${APP_DOMAIN}", competency_anchor)
 
     def test_host_ports_preserve_public_and_vpn_boundaries(self) -> None:
         compose = COMPOSE.read_text(encoding="utf-8")
@@ -386,26 +386,23 @@ class EnvironmentContractTest(unittest.TestCase):
         self.assertNotIn("AGE_KEYGEN_INTEGRATION_BINARY", workflow)
         self.assertEqual(workflow.count("make quality"), 1)
 
-    def test_application_runtime_has_a_read_only_root_filesystem(self) -> None:
+    def test_backend_runtime_has_a_read_only_root_filesystem(self) -> None:
         compose = COMPOSE.read_text(encoding="utf-8")
         backend_anchor = compose.split("x-backend-runtime:", maxsplit=1)[1].split(
-            "x-frontend-runtime:", maxsplit=1
-        )[0]
-        frontend_anchor = compose.split("x-frontend-runtime:", maxsplit=1)[1].split(
             "x-backend-healthcheck:", maxsplit=1
         )[0]
         self.assertIn("read_only: true", backend_anchor)
-        self.assertIn("read_only: true", frontend_anchor)
+        self.assertNotIn("x-frontend-runtime:", compose)
+        self.assertNotRegex(compose, r"(?m)^  (?:personal-workspace|competency)-frontend-")
 
     def test_application_images_use_registry_latest_and_infrastructure_is_pinned(self) -> None:
         compose = COMPOSE.read_text(encoding="utf-8")
         for image in (
             "personal-workspace-backend:latest",
-            "personal-workspace-frontend:latest",
             "competency-trainer-backend:latest",
-            "competency-trainer-frontend:latest",
         ):
             self.assertIn('${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/' + image, compose)
+        self.assertNotIn("-frontend:latest", compose)
         for image in (
             "postgres:18.4-alpine",
             "valkey/valkey:9.0.1",

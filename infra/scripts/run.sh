@@ -21,9 +21,7 @@ readonly MINIO_CREDENTIAL_FINGERPRINT_FILE="${DEPLOY_STATE_DIR}/minio-credential
 readonly NGINX_IMAGE_REPOSITORY=alittlemore-infra/nginx
 readonly APPLICATION_IMAGE_SERVICES=(
     personal-workspace-backend-init
-    personal-workspace-frontend-blue
     competency-backend-init
-    competency-frontend-blue
 )
 readonly INFRASTRUCTURE_SERVICES=(
     personal-workspace-postgres
@@ -155,11 +153,9 @@ verify_runtime_restart_policies() {
     local service_name
     local services=(
         "personal-workspace-backend-${target_slot}"
-        "personal-workspace-frontend-${target_slot}"
         "personal-workspace-taskiq-worker-${target_slot}"
         "personal-workspace-taskiq-scheduler-${target_slot}"
         "competency-backend-${target_slot}"
-        "competency-frontend-${target_slot}"
         "competency-taskiq-worker-${target_slot}"
         "competency-taskiq-scheduler-${target_slot}"
         "${INFRASTRUCTURE_SERVICES[@]}"
@@ -269,11 +265,9 @@ stop_previous_slot() {
     sleep "$DEPLOY_DRAIN_SECONDS"
     if ! docker compose stop \
         "personal-workspace-backend-${previous}" \
-        "personal-workspace-frontend-${previous}" \
         "personal-workspace-taskiq-worker-${previous}" \
         "personal-workspace-taskiq-scheduler-${previous}" \
         "competency-backend-${previous}" \
-        "competency-frontend-${previous}" \
         "competency-taskiq-worker-${previous}" \
         "competency-taskiq-scheduler-${previous}"; then
         echo "The new slot is active, but the previous slot could not be fully stopped." >&2
@@ -295,17 +289,13 @@ restore_previous_edge() {
         docker compose stop nginx || return 1
         docker compose stop \
             "personal-workspace-backend-${target_slot}" \
-            "personal-workspace-frontend-${target_slot}" \
-            "competency-backend-${target_slot}" \
-            "competency-frontend-${target_slot}" || \
+            "competency-backend-${target_slot}" || \
             echo "Some first-deployment target application containers could not be stopped." >&2
         return
     fi
 
     export PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-${previous_slot}"
-    export PERSONAL_WORKSPACE_ACTIVE_FRONTEND="personal-workspace-frontend-${previous_slot}"
     export COMPETENCY_ACTIVE_BACKEND="competency-backend-${previous_slot}"
-    export COMPETENCY_ACTIVE_FRONTEND="competency-frontend-${previous_slot}"
     export NGINX_IMAGE="${NGINX_IMAGE_REPOSITORY}:${previous_slot}"
 
     if ! compose_up_wait --no-build --pull never --force-recreate nginx; then
@@ -345,9 +335,7 @@ readonly target_slot
 prepare_compose_secret_files "$target_slot"
 
 export PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-${target_slot}"
-export PERSONAL_WORKSPACE_ACTIVE_FRONTEND="personal-workspace-frontend-${target_slot}"
 export COMPETENCY_ACTIVE_BACKEND="competency-backend-${target_slot}"
-export COMPETENCY_ACTIVE_FRONTEND="competency-frontend-${target_slot}"
 
 pull_application_images
 prepare_minio_volume_permissions
@@ -356,9 +344,7 @@ record_minio_credential_fingerprints
 run_backend_initializers
 compose_up_wait --no-build --pull never --force-recreate \
     "$PERSONAL_WORKSPACE_ACTIVE_BACKEND" \
-    "$PERSONAL_WORKSPACE_ACTIVE_FRONTEND" \
-    "$COMPETENCY_ACTIVE_BACKEND" \
-    "$COMPETENCY_ACTIVE_FRONTEND"
+    "$COMPETENCY_ACTIVE_BACKEND"
 sync_certificates
 build_and_validate_candidate_edge
 edge_replaced=false

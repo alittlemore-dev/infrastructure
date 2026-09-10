@@ -11,13 +11,17 @@
 
 ## Возможности
 
-- Единый Compose lifecycle и общий nginx edge для обоих приложений.
+- Единый публичный origin и общий nginx edge для обоих приложений.
+- API-маршрутизация с namespaces: `/api/personal-workspace/*` и `/api/competency/*`
+  преобразуются в существующий контракт `/api/*` соответствующего backend.
 - Отдельные PostgreSQL, Valkey, credentials, volumes и приватные сети для каждого приложения.
 - Общие MinIO и Databasus с отдельными identities и ограниченным доступом к buckets.
 - Синхронный blue/green rollout приложений с health checks и автоматическим откатом маршрутизации.
 - Разделённые по сервисам конфигурация с исходными именами переменных и зашифрованные через
   SOPS/age секреты.
-- Публичные HTTPS-маршруты приложений; служебные интерфейсы и Agent API доступны только через VPN.
+- Публичные HTTPS API; служебные интерфейсы и Agent API доступны только через VPN.
+- Зарезервированные non-API маршруты для будущего единого SPA; текущему deployment не нужен
+  временный frontend image.
 
 ## Локальная разработка
 
@@ -29,8 +33,10 @@ make dev-trust
 make dev
 ```
 
-Приложения доступны по адресам `https://personal-workspace.localhost` и
-`https://competency.localhost`. Сгенерированные логины хранятся в `.dev-state/credentials`.
+Общий edge доступен по адресу `https://alittlemore.localhost`. API Personal Workspace начинаются с
+`/api/personal-workspace/`, API Competency Trainer — с `/api/competency/`, а non-API маршруты
+возвращают `503` до добавления единого SPA. Сгенерированные логины хранятся в
+`.dev-state/credentials`.
 
 ## Production-запуск
 

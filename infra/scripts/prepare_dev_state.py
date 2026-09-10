@@ -38,7 +38,7 @@ def validate_checkout(path: Path, label: str) -> Path:
         resolved = path.expanduser().resolve(strict=True)
     except FileNotFoundError as exc:
         raise DevStateError(f"{label} checkout could not be found: {path}") from exc
-    for relative_path in ("backend/Dockerfile", "frontend/Dockerfile"):
+    for relative_path in ("backend/Dockerfile",):
         candidate = resolved / relative_path
         if not candidate.is_file():
             raise DevStateError(f"{label} checkout is missing {relative_path}: {resolved}")
@@ -248,61 +248,77 @@ def ensure_tls(state_dir: Path) -> None:
     private_key = tls_dir / "privkey.pem"
     fullchain = tls_dir / "fullchain.pem"
     group = (root_key, root_certificate, private_key, fullchain)
-    if require_complete_group(group, "Local HTTPS certificate hierarchy"):
+    has_existing_hierarchy = require_complete_group(group, "Local HTTPS certificate hierarchy")
+    if has_existing_hierarchy:
         run_openssl("verify", "-CAfile", str(root_certificate), str(fullchain))
-        return
+        required_hostnames = (
+            "alittlemore.localhost",
+            "agent.alittlemore.localhost",
+            "s3.localhost",
+        )
+        certificate_details = subprocess.run(
+            ["openssl", "x509", "-in", str(fullchain), "-noout", "-text"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if certificate_details.returncode == 0 and all(
+            f"DNS:{hostname}" in certificate_details.stdout for hostname in required_hostnames
+        ):
+            return
 
     request = tls_dir / "server.csr.pem"
     extension = tls_dir / "server.ext"
     leaf = tls_dir / "server.cert.pem"
-    run_openssl(
-        "genpkey",
-        "-algorithm",
-        "EC",
-        "-pkeyopt",
-        "ec_paramgen_curve:P-256",
-        "-pkeyopt",
-        "ec_param_enc:named_curve",
-        "-out",
-        str(root_key),
-    )
+    if not has_existing_hierarchy:
+        run_openssl(
+            "genpkey",
+            "-algorithm",
+            "EC",
+            "-pkeyopt",
+            "ec_paramgen_curve:P-256",
+            "-pkeyopt",
+            "ec_param_enc:named_curve",
+            "-out",
+            str(root_key),
+        )
+        run_openssl(
+            "req",
+            "-x509",
+            "-new",
+            "-sha256",
+            "-key",
+            str(root_key),
+            "-days",
+            "3650",
+            "-subj",
+            "/CN=alittlemore.dev Local Development CA",
+            "-addext",
+            "basicConstraints=critical,CA:TRUE,pathlen:0",
+            "-addext",
+            "keyUsage=critical,keyCertSign,cRLSign",
+            "-out",
+            str(root_certificate),
+        )
+        run_openssl(
+            "genpkey",
+            "-algorithm",
+            "EC",
+            "-pkeyopt",
+            "ec_paramgen_curve:P-256",
+            "-pkeyopt",
+            "ec_param_enc:named_curve",
+            "-out",
+            str(private_key),
+        )
     run_openssl(
         "req",
-        "-x509",
         "-new",
         "-sha256",
         "-key",
-        str(root_key),
-        "-days",
-        "3650",
-        "-subj",
-        "/CN=alittlemore.dev Local Development CA",
-        "-addext",
-        "basicConstraints=critical,CA:TRUE,pathlen:0",
-        "-addext",
-        "keyUsage=critical,keyCertSign,cRLSign",
-        "-out",
-        str(root_certificate),
-    )
-    run_openssl(
-        "genpkey",
-        "-algorithm",
-        "EC",
-        "-pkeyopt",
-        "ec_paramgen_curve:P-256",
-        "-pkeyopt",
-        "ec_param_enc:named_curve",
-        "-out",
-        str(private_key),
-    )
-    run_openssl(
-        "req",
-        "-new",
-        "-sha256",
-        "-key",
         str(private_key),
         "-subj",
-        "/CN=personal-workspace.localhost",
+        "/CN=alittlemore.localhost",
         "-out",
         str(request),
     )
@@ -311,8 +327,8 @@ def ensure_tls(state_dir: Path) -> None:
         "basicConstraints=critical,CA:FALSE\n"
         "keyUsage=critical,digitalSignature,keyEncipherment\n"
         "extendedKeyUsage=serverAuth\n"
-        "subjectAltName=DNS:personal-workspace.localhost,DNS:competency.localhost,"
-        "DNS:agent.competency.localhost,DNS:s3.localhost\n",
+        "subjectAltName=DNS:alittlemore.localhost,DNS:agent.alittlemore.localhost,"
+        "DNS:s3.localhost\n",
     )
     run_openssl(
         "x509",
@@ -407,9 +423,7 @@ def prepare(args: argparse.Namespace) -> None:
 
     environment = {
         "PERSONAL_WORKSPACE_BUILD_CONTEXT": str(personal_workspace / "backend"),
-        "PERSONAL_WORKSPACE_FRONTEND_BUILD_CONTEXT": str(personal_workspace / "frontend"),
         "COMPETENCY_BUILD_CONTEXT": str(competency_trainer / "backend"),
-        "COMPETENCY_FRONTEND_BUILD_CONTEXT": str(competency_trainer / "frontend"),
         "NGINX_CERTS_DIR": str(state_dir / "tls"),
         "COMPETENCY_AUTH_PUBLIC_KEY": auth_public_key.read_text(encoding="utf-8"),
         "COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE": str(platform_secrets / "minio_root_access_key"),

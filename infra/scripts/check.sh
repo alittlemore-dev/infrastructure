@@ -35,9 +35,7 @@ set -a
 set +a
 
 export PERSONAL_WORKSPACE_ACTIVE_BACKEND=personal-workspace-backend-blue
-export PERSONAL_WORKSPACE_ACTIVE_FRONTEND=personal-workspace-frontend-blue
 export COMPETENCY_ACTIVE_BACKEND=competency-backend-blue
-export COMPETENCY_ACTIVE_FRONTEND=competency-frontend-blue
 while IFS= read -r compose_secret_variable; do
     export "$compose_secret_variable=/dev/null"
 done < <(

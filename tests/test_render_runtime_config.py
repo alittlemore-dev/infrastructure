@@ -25,15 +25,17 @@ class RenderRuntimeConfigTest(unittest.TestCase):
                         {
                             "name": "platform",
                             "path": "config/platform/production.env",
-                            "variables": ["IMAGE_REGISTRY"],
-                            "runtimeAliases": {"IMAGE_REGISTRY": "IMAGE_REGISTRY"},
+                            "variables": ["IMAGE_REGISTRY", "APP_DOMAIN"],
+                            "runtimeAliases": {
+                                "IMAGE_REGISTRY": "IMAGE_REGISTRY",
+                                "APP_DOMAIN": "APP_DOMAIN",
+                            },
                         },
                         {
                             "name": "personal-workspace",
                             "path": "config/personal-workspace/production.env",
                             "variables": ["APP_DEBUG", "APP_DOMAIN", "DB_NAME"],
                             "runtimeAliases": {
-                                "APP_DOMAIN": "PERSONAL_WORKSPACE_DOMAIN",
                                 "DB_NAME": "PERSONAL_WORKSPACE_DB_NAME",
                             },
                         },
@@ -42,7 +44,6 @@ class RenderRuntimeConfigTest(unittest.TestCase):
                             "path": "config/competency-trainer/production.env",
                             "variables": ["APP_DEBUG", "APP_DOMAIN", "DB_NAME"],
                             "runtimeAliases": {
-                                "APP_DOMAIN": "COMPETENCY_DOMAIN",
                                 "DB_NAME": "COMPETENCY_DB_NAME",
                             },
                         },
@@ -60,7 +61,8 @@ class RenderRuntimeConfigTest(unittest.TestCase):
             (root / "config/personal-workspace").mkdir(parents=True)
             (root / "config/competency-trainer").mkdir(parents=True)
             (root / "config/platform/production.env").write_text(
-                "IMAGE_REGISTRY=ghcr.io/alittlemore-dev\n", encoding="utf-8"
+                "IMAGE_REGISTRY=ghcr.io/alittlemore-dev\nAPP_DOMAIN=example.com\n",
+                encoding="utf-8",
             )
             (root / "config/personal-workspace/production.env").write_text(
                 "APP_DEBUG=false\nAPP_DOMAIN=personal.example.com\nDB_NAME=personal\n",
@@ -74,9 +76,8 @@ class RenderRuntimeConfigTest(unittest.TestCase):
             rendered = render_runtime_config(self.write_manifest(root), root)
 
             self.assertIn('IMAGE_REGISTRY="ghcr.io/alittlemore-dev"', rendered)
-            self.assertIn('PERSONAL_WORKSPACE_DOMAIN="personal.example.com"', rendered)
+            self.assertIn('APP_DOMAIN="example.com"', rendered)
             self.assertIn('PERSONAL_WORKSPACE_DB_NAME="personal"', rendered)
-            self.assertIn('COMPETENCY_DOMAIN="competency.example.com"', rendered)
             self.assertIn('COMPETENCY_DB_NAME="competency"', rendered)
             self.assertNotIn("PERSONAL_WORKSPACE_APP_DEBUG", rendered)
             self.assertNotIn("COMPETENCY_APP_DEBUG", rendered)
@@ -88,7 +89,8 @@ class RenderRuntimeConfigTest(unittest.TestCase):
             (root / "config/personal-workspace").mkdir(parents=True)
             (root / "config/competency-trainer").mkdir(parents=True)
             (root / "config/platform/production.env").write_text(
-                "IMAGE_REGISTRY=ghcr.io/alittlemore-dev\n", encoding="utf-8"
+                "IMAGE_REGISTRY=ghcr.io/alittlemore-dev\nAPP_DOMAIN=example.com\n",
+                encoding="utf-8",
             )
             (root / "config/personal-workspace/production.env").write_text(
                 "APP_DEBUG=false\nAPP_DOMAIN=personal.example.com\nDB_NAME=personal\n"
@@ -110,7 +112,8 @@ class RenderRuntimeConfigTest(unittest.TestCase):
             (root / "config/personal-workspace").mkdir(parents=True)
             (root / "config/competency-trainer").mkdir(parents=True)
             (root / "config/platform/production.env").write_text(
-                "IMAGE_REGISTRY=ghcr.io/alittlemore-dev\n", encoding="utf-8"
+                "IMAGE_REGISTRY=ghcr.io/alittlemore-dev\nAPP_DOMAIN=example.com\n",
+                encoding="utf-8",
             )
             (root / "config/personal-workspace/production.env").write_text(
                 "APP_DEBUG=\nAPP_DOMAIN=personal.example.com\nDB_NAME=personal\n",
@@ -156,7 +159,7 @@ class RenderRuntimeConfigTest(unittest.TestCase):
             (root / "config/competency-trainer").mkdir(parents=True)
             original = 'trailing\\ ${SHOULD_NOT_EXPAND} `printf injected` "quoted"'
             (root / "config/platform/production.env").write_text(
-                f"IMAGE_REGISTRY={original}\n", encoding="utf-8"
+                f"IMAGE_REGISTRY={original}\nAPP_DOMAIN=example.com\n", encoding="utf-8"
             )
             for application in ("personal-workspace", "competency-trainer"):
                 (root / f"config/{application}/production.env").write_text(

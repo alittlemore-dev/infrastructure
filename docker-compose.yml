@@ -12,33 +12,11 @@ x-backend-runtime: &backend-runtime
     - /tmp:mode=1777,uid=10001,gid=10001
   restart: unless-stopped
 
-x-frontend-runtime: &frontend-runtime
-  user: "1000:1000"
-  read_only: true
-  pull_policy: always
-  cap_drop:
-    - ALL
-  security_opt:
-    - no-new-privileges:true
-  tmpfs:
-    - /tmp:mode=1777,uid=1000,gid=1000
-  restart: unless-stopped
-
 x-backend-healthcheck: &backend-healthcheck
   test:
     [
       "CMD-SHELL",
       "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/healthcheck/ready', timeout=3).close()\"",
-    ]
-  interval: 5s
-  timeout: 5s
-  retries: 24
-
-x-frontend-healthcheck: &frontend-healthcheck
-  test:
-    [
-      "CMD-SHELL",
-      "node -e \"fetch('http://127.0.0.1:4000/healthz').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\"",
     ]
   interval: 5s
   timeout: 5s
@@ -58,6 +36,7 @@ x-personal-workspace-backend: &personal-workspace-backend
   env_file:
     - ${PERSONAL_WORKSPACE_ENV_FILE:-./config/personal-workspace/production.env}
   environment: &personal-workspace-backend-environment
+    APP_DOMAIN: ${APP_DOMAIN}
     APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
     DB_HOST: personal-workspace-postgres
@@ -100,6 +79,7 @@ x-competency-backend: &competency-backend
     AGENT_ACCESS_CERTIFICATE_CHAIN_FILE: /run/secrets/agent_certificate_chain
     AGENT_ACCESS_ISSUING_CERTIFICATE_FILE: /run/secrets/agent_issuing_certificate
     AGENT_ACCESS_ISSUING_PRIVATE_KEY_FILE: /run/secrets/agent_issuing_private_key
+    APP_DOMAIN: ${APP_DOMAIN}
     APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
     AUTH_PRIVATE_KEY_FILE: /run/secrets/auth_private_key
@@ -235,26 +215,6 @@ services:
         condition: service_healthy
     healthcheck: *process-healthcheck
 
-  personal-workspace-frontend-blue:
-    <<: *frontend-runtime
-    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/personal-workspace-frontend:latest"
-    container_name: personal_workspace_frontend_blue
-    networks:
-      - personal-workspace-network
-    environment:
-      PORT: 4000
-    healthcheck: *frontend-healthcheck
-
-  personal-workspace-frontend-green:
-    <<: *frontend-runtime
-    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/personal-workspace-frontend:latest"
-    container_name: personal_workspace_frontend_green
-    networks:
-      - personal-workspace-network
-    environment:
-      PORT: 4000
-    healthcheck: *frontend-healthcheck
-
   competency-backend-blue:
     <<: *competency-backend
     container_name: competency_trainer_backend_blue
@@ -335,36 +295,6 @@ services:
         condition: service_healthy
     healthcheck: *process-healthcheck
 
-  competency-frontend-blue:
-    <<: *frontend-runtime
-    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/competency-trainer-frontend:latest"
-    container_name: competency_trainer_frontend_blue
-    networks:
-      - competency-network
-    environment:
-      PORT: 4000
-      APP_URL_SCHEMA: ${APP_URL_SCHEMA}
-      APP_DOMAIN: ${COMPETENCY_DOMAIN}
-      SSR_API_ORIGIN: http://competency-backend-blue:8080
-      SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${COMPETENCY_DOMAIN}
-      NG_ALLOWED_HOSTS: ${COMPETENCY_DOMAIN}
-    healthcheck: *frontend-healthcheck
-
-  competency-frontend-green:
-    <<: *frontend-runtime
-    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/competency-trainer-frontend:latest"
-    container_name: competency_trainer_frontend_green
-    networks:
-      - competency-network
-    environment:
-      PORT: 4000
-      APP_URL_SCHEMA: ${APP_URL_SCHEMA}
-      APP_DOMAIN: ${COMPETENCY_DOMAIN}
-      SSR_API_ORIGIN: http://competency-backend-green:8080
-      SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${COMPETENCY_DOMAIN}
-      NG_ALLOWED_HOSTS: ${COMPETENCY_DOMAIN}
-    healthcheck: *frontend-healthcheck
-
   personal-workspace-postgres:
     image: postgres:18.4-alpine
     container_name: personal_workspace_postgres
@@ -412,7 +342,7 @@ services:
     user: "10002:10002"
     restart: unless-stopped
     environment:
-      MINIO_API_CORS_ALLOW_ORIGIN: ${APP_URL_SCHEMA}://${PERSONAL_WORKSPACE_DOMAIN},${APP_URL_SCHEMA}://${COMPETENCY_DOMAIN}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${APP_URL_SCHEMA}://${APP_DOMAIN}
       MINIO_REGION_NAME: ${MINIO_REGION}
     secrets:
       - source: minio_root_access_key
@@ -552,12 +482,9 @@ services:
       - source: competency_agent_certificate_chain
         target: agent_client_ca_certificate
     environment:
-      PERSONAL_WORKSPACE_DOMAIN: ${PERSONAL_WORKSPACE_DOMAIN}
+      APP_DOMAIN: ${APP_DOMAIN}
       PERSONAL_WORKSPACE_ACTIVE_BACKEND: ${PERSONAL_WORKSPACE_ACTIVE_BACKEND:-personal-workspace-backend-blue}
-      PERSONAL_WORKSPACE_ACTIVE_FRONTEND: ${PERSONAL_WORKSPACE_ACTIVE_FRONTEND:-personal-workspace-frontend-blue}
-      COMPETENCY_DOMAIN: ${COMPETENCY_DOMAIN}
       COMPETENCY_ACTIVE_BACKEND: ${COMPETENCY_ACTIVE_BACKEND:-competency-backend-blue}
-      COMPETENCY_ACTIVE_FRONTEND: ${COMPETENCY_ACTIVE_FRONTEND:-competency-frontend-blue}
       MINIO_DOMAIN: ${MINIO_DOMAIN}
       MINIO_PUBLIC_URL: ${APP_URL_SCHEMA}://${MINIO_DOMAIN}
       SSL_CERT: ${SSL_CERT}
@@ -616,8 +543,7 @@ services:
       - no-new-privileges:true
     environment:
       TLS_CERTIFICATE_NAME: ${TLS_CERTIFICATE_NAME}
-      PERSONAL_WORKSPACE_DOMAIN: ${PERSONAL_WORKSPACE_DOMAIN}
-      COMPETENCY_DOMAIN: ${COMPETENCY_DOMAIN}
+      APP_DOMAIN: ${APP_DOMAIN}
       MINIO_DOMAIN: ${MINIO_DOMAIN}
     volumes:
       - letsencrypt:/etc/letsencrypt:ro

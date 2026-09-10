@@ -25,10 +25,9 @@ class CertificateContractTest(unittest.TestCase):
     def test_certificate_sync_validates_before_atomic_activation(self) -> None:
         script = (ROOT / "infra/scripts/cert_sync.sh").read_text(encoding="utf-8")
         for hostname in (
-            '"$personal_workspace_domain"',
-            '"$competency_domain"',
+            '"$app_domain"',
             '"$minio_domain"',
-            '"agent.${competency_domain}"',
+            '"agent.${app_domain}"',
         ):
             self.assertIn(hostname, script)
         self.assertLess(script.index("openssl x509 -in"), script.index('mv -Tf "$temporary_link"'))

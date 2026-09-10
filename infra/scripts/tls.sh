@@ -53,10 +53,9 @@ issue_certificates() {
         --keep-until-expiring \
         --expand \
         --cert-name "$TLS_CERTIFICATE_NAME" \
-        -d "$PERSONAL_WORKSPACE_DOMAIN" \
-        -d "$COMPETENCY_DOMAIN" \
+        -d "$APP_DOMAIN" \
         -d "$MINIO_DOMAIN" \
-        -d "agent.${COMPETENCY_DOMAIN}"
+        -d "agent.${APP_DOMAIN}"
     sync_certificates
     reload_nginx_if_running
 }

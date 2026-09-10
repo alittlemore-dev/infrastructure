@@ -42,20 +42,6 @@ services:
     container_name: alittlemore_dev_personal_workspace_taskiq_scheduler_green
     profiles: [production-only]
 
-  personal-workspace-frontend-blue:
-    image: alittlemore-dev/personal-workspace-frontend:local
-    pull_policy: never
-    build:
-      context: ${PERSONAL_WORKSPACE_FRONTEND_BUILD_CONTEXT:?Personal Workspace frontend checkout is required}
-      dockerfile: Dockerfile
-    container_name: alittlemore_dev_personal_workspace_frontend_blue
-
-  personal-workspace-frontend-green:
-    image: alittlemore-dev/personal-workspace-frontend:local
-    pull_policy: never
-    container_name: alittlemore_dev_personal_workspace_frontend_green
-    profiles: [production-only]
-
   competency-backend-blue:
     <<: *competency-dev-image
     build:
@@ -87,20 +73,6 @@ services:
   competency-taskiq-scheduler-green:
     <<: *competency-dev-image
     container_name: alittlemore_dev_competency_taskiq_scheduler_green
-    profiles: [production-only]
-
-  competency-frontend-blue:
-    image: alittlemore-dev/competency-trainer-frontend:local
-    pull_policy: never
-    build:
-      context: ${COMPETENCY_FRONTEND_BUILD_CONTEXT:?Competency Trainer frontend checkout is required}
-      dockerfile: Dockerfile
-    container_name: alittlemore_dev_competency_frontend_blue
-
-  competency-frontend-green:
-    image: alittlemore-dev/competency-trainer-frontend:local
-    pull_policy: never
-    container_name: alittlemore_dev_competency_frontend_green
     profiles: [production-only]
 
   personal-workspace-postgres:

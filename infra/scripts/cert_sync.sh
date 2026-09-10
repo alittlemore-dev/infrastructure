@@ -3,8 +3,7 @@ set -eu
 umask 077
 
 readonly certificate_name="${TLS_CERTIFICATE_NAME:?TLS_CERTIFICATE_NAME must be set}"
-readonly personal_workspace_domain="${PERSONAL_WORKSPACE_DOMAIN:?PERSONAL_WORKSPACE_DOMAIN must be set}"
-readonly competency_domain="${COMPETENCY_DOMAIN:?COMPETENCY_DOMAIN must be set}"
+readonly app_domain="${APP_DOMAIN:?APP_DOMAIN must be set}"
 readonly minio_domain="${MINIO_DOMAIN:?MINIO_DOMAIN must be set}"
 readonly source_directory="/etc/letsencrypt/live/${certificate_name}"
 readonly releases_directory=/certs/releases
@@ -34,10 +33,9 @@ cp "${source_directory}/privkey.pem" "${staging_directory}/privkey.pem"
 openssl x509 -in "${staging_directory}/fullchain.pem" -noout -checkend 0 >/dev/null
 openssl pkey -in "${staging_directory}/privkey.pem" -noout >/dev/null
 for hostname in \
-    "$personal_workspace_domain" \
-    "$competency_domain" \
+    "$app_domain" \
     "$minio_domain" \
-    "agent.${competency_domain}"; do
+    "agent.${app_domain}"; do
     openssl x509 -in "${staging_directory}/fullchain.pem" -noout -checkhost "$hostname" >/dev/null
 done
 certificate_public_key="$({

@@ -173,23 +173,50 @@ class EdgeSecurityContractTest(unittest.TestCase):
         public_agent = [
             block
             for block in blocks
-            if "listen 8443 ssl;" in block and "server_name agent.${COMPETENCY_DOMAIN};" in block
+            if "listen 8443 ssl;" in block and "server_name agent.${APP_DOMAIN};" in block
         ]
         self.assertEqual(1, len(public_agent))
         self.assertIn("return 404;", public_agent[0])
         self.assertNotIn("proxy_pass", public_agent[0])
 
-        public_competency = [
+        public_app = [
             block
             for block in blocks
-            if "listen 8443 ssl;" in block and "server_name ${COMPETENCY_DOMAIN};" in block
+            if "listen 8443 ssl;" in block and "server_name ${APP_DOMAIN};" in block
         ]
-        self.assertEqual(1, len(public_competency))
-        self.assertIn('proxy_set_header X-Agent-Client-Certificate "";', public_competency[0])
+        self.assertEqual(1, len(public_app))
+        self.assertIn('proxy_set_header X-Agent-Client-Certificate "";', public_app[0])
         self.assertRegex(
-            public_competency[0],
+            public_app[0],
             r"location \^~ /internal/agent/v1\s*\{\s*return 404;",
         )
+
+    def test_single_application_host_routes_namespaced_apis_to_existing_backend_paths(self) -> None:
+        config = NGINX_TEMPLATE.read_text(encoding="utf-8")
+        public_app = next(
+            block
+            for block in server_blocks(config)
+            if "listen 8443 ssl;" in block and "server_name ${APP_DOMAIN};" in block
+        )
+
+        expected_routes = {
+            "location ^~ /api/personal-workspace/ {": (
+                "proxy_pass http://personal_workspace_backend/api/;"
+            ),
+            "location ^~ /api/competency/ {": "proxy_pass http://competency_backend/api/;",
+        }
+        for location, proxy_pass in expected_routes.items():
+            self.assertIn(location, public_app)
+            self.assertIn(proxy_pass, public_app)
+        self.assertIn("proxy_cookie_path /api/auth /api/competency/auth;", public_app)
+        self.assertRegex(public_app, r"location /api/\s*\{\s*return 404;")
+        self.assertRegex(
+            public_app,
+            r"location /\s*\{\s*add_header Retry-After \"60\" always;\s*return 503;",
+        )
+        self.assertNotRegex(config, r"(?m)^upstream .*frontend")
+        self.assertNotIn("proxy_pass http://personal_workspace_frontend", config)
+        self.assertNotIn("proxy_pass http://competency_frontend", config)
 
     def test_http_redirects_only_expected_public_hostnames(self) -> None:
         config = NGINX_TEMPLATE.read_text(encoding="utf-8")
@@ -208,12 +235,11 @@ class EdgeSecurityContractTest(unittest.TestCase):
         ]
         self.assertEqual(1, len(redirect))
         for hostname in (
-            "${PERSONAL_WORKSPACE_DOMAIN}",
-            "${COMPETENCY_DOMAIN}",
+            "${APP_DOMAIN}",
             "${MINIO_DOMAIN}",
         ):
             self.assertIn(hostname, redirect[0])
-        self.assertNotIn("agent.${COMPETENCY_DOMAIN}", redirect[0])
+        self.assertNotIn("agent.${APP_DOMAIN}", redirect[0])
 
     def test_private_shared_storage_buckets_are_not_public(self) -> None:
         config = NGINX_TEMPLATE.read_text(encoding="utf-8")
@@ -242,13 +268,14 @@ class EdgeSecurityContractTest(unittest.TestCase):
         ]
 
         self.assertEqual(1, len(storage_blocks))
-        self.assertNotIn("s3.${PERSONAL_WORKSPACE_DOMAIN}", config)
-        self.assertNotIn("s3.${COMPETENCY_DOMAIN}", config)
+        self.assertNotIn("PERSONAL_WORKSPACE_DOMAIN", config)
+        self.assertNotIn("COMPETENCY_DOMAIN", config)
 
         compose = COMPOSE.read_text(encoding="utf-8")
         self.assertEqual(3, compose.count("MINIO_PUBLIC_URL: ${APP_URL_SCHEMA}://${MINIO_DOMAIN}"))
-        self.assertNotIn("s3.${PERSONAL_WORKSPACE_DOMAIN}", compose)
-        self.assertNotIn("s3.${COMPETENCY_DOMAIN}", compose)
+        self.assertIn("MINIO_API_CORS_ALLOW_ORIGIN: ${APP_URL_SCHEMA}://${APP_DOMAIN}", compose)
+        self.assertNotIn("PERSONAL_WORKSPACE_DOMAIN", compose)
+        self.assertNotIn("COMPETENCY_DOMAIN", compose)
 
     def test_deploy_payload_preserves_local_runtime_state(self) -> None:
         workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")

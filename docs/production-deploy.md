@@ -36,7 +36,7 @@ directory.
 
 Deploy runs are serialized and never cancel an in-progress stateful rollout. The deploy workflow
 does not clone or synchronize either application repository. Their build and publish pipelines
-own the four application images described below. A deploy therefore uses whatever immutable image
+own the two backend images described below. A deploy therefore uses whatever immutable image
 digests their `latest` tags resolve to when `make run` executes. Each reference is pulled once, and
 all services in that run start from that locally resolved tag without another pull.
 
@@ -94,13 +94,33 @@ already identifies the operator-selected payload.
 not end in `/`. The application repositories build and publish these images:
 
 - `${IMAGE_REGISTRY}/personal-workspace-backend:latest`
-- `${IMAGE_REGISTRY}/personal-workspace-frontend:latest`
 - `${IMAGE_REGISTRY}/competency-trainer-backend:latest`
-- `${IMAGE_REGISTRY}/competency-trainer-frontend:latest`
 
 Every application service declares `pull_policy: always`. `make run` resolves and pulls each of
-the four references once, then starts every process with `--pull never`, so one deployment cannot
+the two references once, then starts every process with `--pull never`, so one deployment cannot
 mix different digests if a moving `latest` tag changes midway.
+
+No frontend repository or image is part of the current runtime. nginx reserves all non-API paths
+for one future SPA and returns `503 Service Unavailable` with `Retry-After` until that image exists.
+When the SPA is introduced, add one blue/green frontend service and replace only this fallback;
+the backend URL contract below does not need to change.
+
+## Public routing
+
+`APP_DOMAIN=alittlemore.dev` is the only public application origin. nginx owns service selection
+and translates the namespaced public paths before forwarding them:
+
+- `/api/personal-workspace/<path>` becomes `/api/<path>` on Personal Workspace;
+- `/api/competency/<path>` becomes `/api/<path>` on Competency Trainer;
+- `/healthz` checks the edge itself;
+- unknown `/api/*` paths return `404` and are never sent to the future SPA.
+
+The gateway also rewrites backend redirects back into the public namespace. Competency Trainer's
+refresh-cookie path is rewritten from `/api/auth` to `/api/competency/auth`, so it remains scoped to
+that service after the URL migration. `/sitemap.xml` and `/robots.txt` remain served by Competency
+Trainer. `s3.alittlemore.dev` stays a separate storage origin because S3 URL/signature semantics do
+not fit the application path router. `agent.alittlemore.dev` remains a closed public TLS contour and
+the corresponding Agent API is exposed only on the VPN-bound mTLS port `18083`.
 
 Infrastructure dependencies use fixed tags in `docker-compose.yml` and the three infrastructure
 Dockerfiles. Locally built MinIO, nginx, and certificate-sync images use stable local tags so an
@@ -121,13 +141,13 @@ The two application files deliberately use their applications' native names. For
 can declare `APP_DEBUG`, `DB_NAME`, and `DB_USER`; the file path is the namespace. Compose loads
 each file only into the corresponding backend, initializer, worker, and scheduler containers.
 `infra/deploy/runtime-config.manifest.json` defines the exact allowed keys and the few internal
-aliases needed by Compose itself, such as the two public domains and PostgreSQL database names.
+aliases needed by Compose itself, such as the shared public domain and PostgreSQL database names.
 Those aliases are implementation details and are generated into `.deploy-state/runtime.env` with
 mode `0600`; they are not application configuration conventions.
 
 The open values that previously lived in the GitHub `production` Environment have been copied into
 these files. Settings which were already part of the repository's deployment contract—application
-domains, the registry prefix, certificate lineage, and the SOPS identity path—are tracked there as
+domain, the registry prefix, certificate lineage, and the SOPS identity path—are tracked there as
 well. Review open-config changes through normal Git diffs.
 
 `IMAGE_REGISTRY` contains only the registry/repository prefix and must not end in `/`. Registry
@@ -392,10 +412,9 @@ When an AI agent assists with production secrets, it must follow this protocol:
 
 The stack uses one certificate lineage named by `TLS_CERTIFICATE_NAME`, covering:
 
-- `personal-workspace.alittlemore.dev`
-- `competency.alittlemore.dev`
+- `alittlemore.dev`
 - `s3.alittlemore.dev`
-- `agent.competency.alittlemore.dev`
+- `agent.alittlemore.dev`
 
 For the first deployment, enable the workflow's `issue_certificates` input; it runs issuance from
 the candidate release before `current` exists. After the first successful deployment, issue or
@@ -433,14 +452,14 @@ Before the edge switch, `make run` must successfully:
 - make both PostgreSQL and Valkey pairs plus the shared MinIO healthy, complete the MinIO bootstrap,
   and start the shared Databasus container (Databasus has no container health probe);
 - run both backend initializers;
-- make both target backends and frontends healthy;
+- make both target backends healthy;
 - start both TaskIQ workers and schedulers.
 
 The certificate helper stages a new release, parses the key and certificate, checks their match,
-checks expiry and all four hostnames, applies restrictive permissions, and only then atomically
+checks expiry and all three hostnames, applies restrictive permissions, and only then atomically
 moves the `current` symlink. Before replacing the edge, `make run` builds a slot-specific nginx
 image and runs its complete render plus `nginx -t` path in an isolated one-off container. Only then
-is nginx force-recreated with the target service names. The four HTTPS health checks use
+is nginx force-recreated with the target service names. The three HTTPS health checks use
 `--resolve ...:127.0.0.1`, so they always exercise the just-started local edge rather than an
 external DNS target.
 
@@ -448,7 +467,7 @@ The state file is updated and previous application containers are stopped only a
 served-certificate, and application checks succeed. A pre-switch failure leaves the old edge
 untouched. A post-switch failure automatically recreates nginx from the previous slot's preserved
 image and upstream names. On the first deployment there is no previous edge to restore, so a failed
-post-switch verification stops nginx and the target web containers instead of leaving an
+post-switch verification stops nginx and the target backend containers instead of leaving an
 unverified public edge running. Routing rollback does not undo database migrations.
 
 There is one public nginx container, so its force-recreation can cause a short edge interruption.
@@ -462,7 +481,7 @@ not enforce backward-compatible or expand/contract migrations; releases with inc
 migrations must accept that cutover risk or arrange a maintenance window.
 
 Application `latest` is intentionally not a rollback identifier. For a controlled rollback, first
-retag the desired backend and frontend digests as `latest` in the registry, then rerun `make run`.
+retag the desired backend digests as `latest` in the registry, then rerun `make run`.
 
 ## Data and backup boundaries
 
@@ -494,14 +513,14 @@ The application identities are separate: Personal Workspace can use `media` and
 Databasus can use only `database-backups`. Both current application images hard-code the bucket
 name `media`, so their public media objects intentionally occupy one shared namespace. Complete
 bucket-level isolation would require changing the application code to make that bucket name
-configurable. MinIO CORS allows both application origins. The shared public S3 endpoint rejects
+configurable. MinIO CORS allows the shared application origin. The public S3 endpoint rejects
 `knowledge-private` and `database-backups` before a request reaches MinIO.
 
 ## Private network boundaries
 
 Only nginx publishes normal runtime ports. `80` and `443` are public. Ports `18081` through `18083`
 must bind to `VPN_BIND_ADDRESS`; do not use `0.0.0.0` or a public interface address. PostgreSQL,
-Valkey, MinIO, Databasus, backend, frontend, and TaskIQ processes remain on per-application bridge
+Valkey, MinIO, Databasus, backend, and TaskIQ processes remain on per-application bridge
 networks.
 
 The Agent API on `18083` requires a client certificate chained to the configured Competency Trainer

@@ -11,12 +11,16 @@ development entrypoint.
 
 ## Features
 
-- One Compose lifecycle and one nginx edge for both applications.
+- One public application origin and one nginx edge for both applications.
+- Namespaced API routing: `/api/personal-workspace/*` and `/api/competency/*` are translated to
+  each backend's existing `/api/*` contract.
 - Separate PostgreSQL, Valkey, credentials, volumes, and private networks for each application.
 - Shared MinIO object storage and Databasus backups with scoped identities and buckets.
 - Synchronized blue/green application rollouts with health checks and automatic routing rollback.
 - Service-scoped configuration with native variable names and SOPS/age-encrypted secrets.
-- Public HTTPS application routes with operational tools and the Agent API restricted to the VPN.
+- Public HTTPS APIs with operational tools and the Agent API restricted to the VPN.
+- A reserved non-API route space for a future unified SPA; no placeholder frontend image is
+  required by the current deployment.
 
 ## Local development
 
@@ -28,8 +32,9 @@ make dev-trust
 make dev
 ```
 
-Applications are available at `https://personal-workspace.localhost` and
-`https://competency.localhost`. Generated logins are stored in `.dev-state/credentials`.
+The shared edge is available at `https://alittlemore.localhost`. Personal Workspace APIs start at
+`/api/personal-workspace/`, Competency Trainer APIs at `/api/competency/`, and non-API routes return
+`503` until the unified SPA is added. Generated logins are stored in `.dev-state/credentials`.
 
 ## Production deployment
 

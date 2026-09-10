@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "infra/scripts"
 def create_checkout(root: Path, name: str) -> Path:
     checkout = root / name
-    for component in ("backend", "frontend"):
+    for component in ("backend",):
         directory = checkout / component
         directory.mkdir(parents=True)
         (directory / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
@@ -93,6 +93,27 @@ class DevStateTest(unittest.TestCase):
                     text=True,
                 )
                 self.assertEqual(0, verified.returncode, verified.stderr)
+
+            certificate_details = subprocess.run(
+                [
+                    "openssl",
+                    "x509",
+                    "-in",
+                    str(state_dir / "tls/fullchain.pem"),
+                    "-noout",
+                    "-text",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(0, certificate_details.returncode, certificate_details.stderr)
+            for hostname in (
+                "alittlemore.localhost",
+                "agent.alittlemore.localhost",
+                "s3.localhost",
+            ):
+                self.assertIn(f"DNS:{hostname}", certificate_details.stdout)
 
             credentials = (state_dir / "credentials").read_text(encoding="utf-8")
             self.assertIn("Personal Workspace: owner / ", credentials)
@@ -183,9 +204,7 @@ class DevComposeTest(unittest.TestCase):
 
         expected_builds = {
             "personal-workspace-backend-blue": personal_workspace / "backend",
-            "personal-workspace-frontend-blue": personal_workspace / "frontend",
             "competency-backend-blue": competency_trainer / "backend",
-            "competency-frontend-blue": competency_trainer / "frontend",
         }
         for service_name, context in expected_builds.items():
             service = services[service_name]
@@ -194,11 +213,11 @@ class DevComposeTest(unittest.TestCase):
             self.assertTrue(service["image"].startswith("alittlemore-dev/"))
 
         self.assertEqual(
-            "personal-workspace.localhost",
+            "alittlemore.localhost",
             services["personal-workspace-backend-blue"]["environment"]["APP_DOMAIN"],
         )
         competency_backend = services["competency-backend-blue"]
-        self.assertEqual("competency.localhost", competency_backend["environment"]["APP_DOMAIN"])
+        self.assertEqual("alittlemore.localhost", competency_backend["environment"]["APP_DOMAIN"])
         self.assertTrue(
             competency_backend["environment"]["AUTH_PUBLIC_KEY"].startswith(
                 "-----BEGIN PUBLIC KEY-----\n"
@@ -214,11 +233,9 @@ class DevComposeTest(unittest.TestCase):
         )
         for inactive_service in (
             "personal-workspace-backend-green",
-            "personal-workspace-frontend-green",
             "personal-workspace-taskiq-worker-green",
             "personal-workspace-taskiq-scheduler-green",
             "competency-backend-green",
-            "competency-frontend-green",
             "competency-taskiq-worker-green",
             "competency-taskiq-scheduler-green",
             "certbot",
@@ -354,10 +371,9 @@ class DevOrchestrationTest(unittest.TestCase):
 
             curl_calls = curl_log.read_text(encoding="utf-8")
             for url in (
-                "https://personal-workspace.localhost/api/healthcheck",
-                "https://personal-workspace.localhost/healthz",
-                "https://competency.localhost/api/healthcheck",
-                "https://competency.localhost/healthz",
+                "https://alittlemore.localhost/healthz",
+                "https://alittlemore.localhost/api/personal-workspace/healthcheck",
+                "https://alittlemore.localhost/api/competency/healthcheck",
                 "https://s3.localhost/minio/health/live",
             ):
                 self.assertIn(url, curl_calls)

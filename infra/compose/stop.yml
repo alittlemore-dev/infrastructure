@@ -15,10 +15,6 @@ services:
     image: scratch
   personal-workspace-taskiq-scheduler-green:
     image: scratch
-  personal-workspace-frontend-blue:
-    image: scratch
-  personal-workspace-frontend-green:
-    image: scratch
   competency-backend-blue:
     image: scratch
   competency-backend-green:
@@ -32,10 +28,6 @@ services:
   competency-taskiq-scheduler-blue:
     image: scratch
   competency-taskiq-scheduler-green:
-    image: scratch
-  competency-frontend-blue:
-    image: scratch
-  competency-frontend-green:
     image: scratch
   personal-workspace-postgres:
     image: scratch

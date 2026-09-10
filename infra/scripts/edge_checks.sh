@@ -9,10 +9,9 @@ verify_served_edge_certificates() {
     local attempt
     local served_current_certificate
     local -a hostnames=(
-        "$PERSONAL_WORKSPACE_DOMAIN"
-        "$COMPETENCY_DOMAIN"
+        "$APP_DOMAIN"
         "$MINIO_DOMAIN"
-        "agent.${COMPETENCY_DOMAIN}"
+        "agent.${APP_DOMAIN}"
     )
 
     peer_certificate="$(mktemp)"
@@ -62,10 +61,9 @@ smoke_edge_applications() {
     local path
     local attempt
     local -a checks=(
-        "${PERSONAL_WORKSPACE_DOMAIN}|/api/healthcheck"
-        "${PERSONAL_WORKSPACE_DOMAIN}|/healthz"
-        "${COMPETENCY_DOMAIN}|/api/healthcheck"
-        "${COMPETENCY_DOMAIN}|/healthz"
+        "${APP_DOMAIN}|/healthz"
+        "${APP_DOMAIN}|/api/personal-workspace/healthcheck"
+        "${APP_DOMAIN}|/api/competency/healthcheck"
     )
 
     for check in "${checks[@]}"; do
