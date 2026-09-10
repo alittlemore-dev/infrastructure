@@ -102,16 +102,9 @@ Every application service declares `pull_policy: always`. `make run` resolves an
 the four references once, then starts every process with `--pull never`, so one deployment cannot
 mix different digests if a moving `latest` tag changes midway.
 
-Infrastructure dependencies use fixed tags:
-
-- PostgreSQL `18.4-alpine`
-- Valkey `9.0.1`
-- MinIO `RELEASE.2025-09-07T16-13-09Z`
-- MinIO Client `RELEASE.2025-08-13T08-35-41Z`
-- Databasus `v3.47.1`
-- nginx-unprivileged `1.31.3-alpine`
-- Certbot `v5.2.2`
-- Certificate-sync helper: Alpine `3.22.2` with OpenSSL `3.5.7-r0`
+Infrastructure dependencies use fixed tags in `docker-compose.yml` and the three infrastructure
+Dockerfiles. Locally built MinIO, nginx, and certificate-sync images use stable local tags so an
+upstream version is declared only once, in the manifest that Dependabot can update.
 
 ## Configuration layout
 
@@ -574,6 +567,21 @@ registry login. It builds local wrapper images, discovers the unique effective C
 pulls only registry-backed images, and scans them for fixed high/critical OS and library
 vulnerabilities. `make security-trivy-images` remains a compatibility alias.
 
-Renovate tracks version and digest pins in the repository. SOPS and age release upgrades still
-require reviewing and updating the per-platform checksums before the quality gate will accept the
-new binaries.
+Dependabot checks GitHub Actions, Compose images, and Dockerfile base images every week. Quality
+tool images are declared in `docker-compose.quality.yml`, which lets Dependabot update their tags
+and digests without custom regex rules in shell scripts.
+
+SOPS and age upgrades still require reviewing every supported platform artifact and updating its
+checksum. The exact OpenSSL package pin in the cert-sync image must remain compatible with the
+selected Alpine branch. Check these manual pins against GitHub Releases and Alpine aports without
+changing the repository:
+
+```bash
+make dependencies-status
+```
+
+The command reports both current pins and available updates, and fails only if it cannot obtain or
+parse a version. This network-dependent status check is intentionally separate from the
+deterministic `make quality` gate. The underlying Python checker uses exit status `1` for available
+updates when called with `--check`, and always uses `2` for lookup or parsing errors. The
+human-facing Make target treats a reported update as a successful status query.

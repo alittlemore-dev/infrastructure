@@ -1,0 +1,38 @@
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "Europe/Moscow"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:30"
+      timezone: "Europe/Moscow"
+    groups:
+      compose-images:
+        patterns: ["*"]
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/infra/cert-sync"
+      - "/infra/minio"
+      - "/infra/nginx"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "11:00"
+      timezone: "Europe/Moscow"
+    groups:
+      docker-images:
+        patterns: ["*"]

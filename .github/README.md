@@ -48,6 +48,18 @@ make quality
 binaries in an ignored local cache. Callers do not pass binary paths. The command runs the same
 complete gate as CI, including the real SOPS/age round trip.
 
+Dependabot checks GitHub Actions, Compose images, and Dockerfile base images every week. A few pins
+need coordinated manual edits: SOPS and age releases include per-platform checksums, while the
+cert-sync OpenSSL package follows the selected Alpine branch. Check those without changing files:
+
+```bash
+make dependencies-status
+```
+
+The command reports both current pins and available updates, and fails only when an upstream lookup
+or local pin cannot be read. It uses the GitHub Releases API and the official Alpine aports mirror,
+so it requires network access; it is intentionally separate from `make quality`.
+
 The application and infrastructure image scan is separate because it requires registry access:
 
 ```bash

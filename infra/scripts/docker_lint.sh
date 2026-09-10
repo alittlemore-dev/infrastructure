@@ -3,10 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "${script_dir}/../.." && pwd)"
-# renovate: datasource=docker depName=hadolint/hadolint
-readonly hadolint_image="hadolint/hadolint:v2.14.0@sha256:27086352fd5e1907ea2b934eb1023f217c5ae087992eb59fde121dce9c9ff21e"
-# renovate: datasource=docker depName=koalaman/shellcheck
-readonly shellcheck_image="koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d"
+quality_compose=(docker compose --file "${repo_dir}/docker-compose.quality.yml")
 dockerfiles=()
 shell_files=()
 
@@ -22,16 +19,15 @@ if [ "${#dockerfiles[@]}" -eq 0 ] || [ "${#shell_files[@]}" -eq 0 ]; then
     exit 1
 fi
 
-docker run --rm \
-    -v "${repo_dir}:/workspace:ro" \
-    -w /workspace \
-    "$hadolint_image" \
+"${quality_compose[@]}" run --rm --no-deps \
+    --volume "${repo_dir}:/workspace:ro" \
+    --workdir /workspace \
     hadolint \
     --failure-threshold error \
     "${dockerfiles[@]}"
 
-docker run --rm \
-    -v "${repo_dir}:/workspace:ro" \
-    -w /workspace \
-    "$shellcheck_image" \
+"${quality_compose[@]}" run --rm --no-deps \
+    --volume "${repo_dir}:/workspace:ro" \
+    --workdir /workspace \
+    shellcheck \
     "${shell_files[@]}"

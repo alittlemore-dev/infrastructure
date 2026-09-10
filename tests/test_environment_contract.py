@@ -46,6 +46,20 @@ def compose_service_blocks(compose: str) -> dict[str, str]:
 
 
 class EnvironmentContractTest(unittest.TestCase):
+    def test_locally_built_image_names_do_not_duplicate_upstream_versions(self) -> None:
+        compose = COMPOSE.read_text(encoding="utf-8")
+        run_script = (ROOT / "infra/scripts/run.sh").read_text(encoding="utf-8")
+
+        self.assertIn("image: alittlemore-infra/minio:local", compose)
+        self.assertIn("image: alittlemore-infra/cert-sync:local", compose)
+        self.assertIn("${NGINX_IMAGE:-alittlemore-infra/nginx:local}", compose)
+        self.assertIn('${NGINX_IMAGE_REPOSITORY}:${target_slot}', run_script)
+        self.assertIn('${NGINX_IMAGE_REPOSITORY}:${previous_slot}', run_script)
+        self.assertNotRegex(
+            compose,
+            r"alittlemore-infra/(?:minio|nginx|cert-sync):[^\n]*[0-9]\.[0-9]",
+        )
+
     def test_public_config_is_service_scoped_and_uses_native_application_names(self) -> None:
         manifest = public_manifest()
         configs = {entry["name"]: entry for entry in manifest["configs"]}

@@ -1,7 +1,5 @@
 .DEFAULT_GOAL := help
 
-# renovate: datasource=docker depName=aquasec/trivy
-TRIVY_IMAGE := docker.io/aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
 QUALITY_TOOLS_DIR ?= $(CURDIR)/.cache/quality-tools
 
 .PHONY: help
@@ -17,6 +15,7 @@ help:
 	@printf '%-30s %s\n' '  doctor' 'Check local quality prerequisites.'
 	@printf '%-30s %s\n' '  doctor-runtime' 'Check production-host prerequisites.'
 	@printf '%-30s %s\n' '  status' 'Show the active deployment and project containers.'
+	@printf '%-30s %s\n' '  dependencies-status' 'Check manually pinned dependencies for upstream updates.'
 	@printf '%-30s %s\n' '  secrets-verify' 'Verify every tracked SOPS document without plaintext output.'
 	@printf '%-30s %s\n' '  deploy' 'Run the production-oriented blue/green rollout.'
 	@printf '%-30s %s\n' '  stop' 'Stop the stack without deleting named volumes.'
@@ -67,12 +66,12 @@ lint-dockerfiles: lint
 
 .PHONY: security-config security-trivy-config
 security-config:
-	bash infra/scripts/trivy_scan.sh config "$(TRIVY_IMAGE)"
+	bash infra/scripts/trivy_scan.sh config
 security-trivy-config: security-config
 
 .PHONY: security-images security-trivy-images
 security-images:
-	bash infra/scripts/trivy_scan.sh images "$(TRIVY_IMAGE)"
+	bash infra/scripts/trivy_scan.sh images
 security-trivy-images: security-images
 
 .PHONY: doctor doctor-runtime
@@ -84,6 +83,10 @@ doctor-runtime:
 .PHONY: status
 status:
 	bash infra/scripts/status.sh
+
+.PHONY: dependencies-status
+dependencies-status:
+	python3 infra/scripts/dependencies_status.py --repo-dir .
 
 .PHONY: secrets-verify
 secrets-verify:

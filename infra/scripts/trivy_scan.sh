@@ -4,12 +4,12 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "${script_dir}/../.." && pwd)"
 action="${1:?action is required}"
-trivy_image="${2:?Trivy image is required}"
+quality_compose=(docker compose --file "${repo_dir}/docker-compose.quality.yml")
 
 scan_config() {
-    docker run --rm \
-        -v "${repo_dir}:/workspace:ro" \
-        "$trivy_image" \
+    "${quality_compose[@]}" run --rm --no-deps \
+        --volume "${repo_dir}:/workspace:ro" \
+        trivy \
         --cache-dir /tmp/trivy-cache \
         --quiet \
         config \
@@ -21,9 +21,9 @@ scan_config() {
 }
 
 scan_image() {
-    docker run --rm \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        "$trivy_image" \
+    "${quality_compose[@]}" run --rm --no-deps \
+        --volume /var/run/docker.sock:/var/run/docker.sock \
+        trivy \
         --cache-dir /tmp/trivy-cache \
         --quiet \
         image \
@@ -88,7 +88,7 @@ case "$action" in
         done
         ;;
     *)
-        echo "Usage: $0 {config|images} TRIVY_IMAGE" >&2
+        echo "Usage: $0 {config|images}" >&2
         exit 2
         ;;
 esac

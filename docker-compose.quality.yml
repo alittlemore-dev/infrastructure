@@ -1,0 +1,31 @@
+name: alittlemore-infra-quality
+
+x-quality-tool: &quality-tool
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp
+
+services:
+  trivy:
+    <<: *quality-tool
+    image: docker.io/aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+    entrypoint:
+      - trivy
+
+  hadolint:
+    <<: *quality-tool
+    image: hadolint/hadolint:v2.14.0@sha256:27086352fd5e1907ea2b934eb1023f217c5ae087992eb59fde121dce9c9ff21e
+    entrypoint:
+      - hadolint
+    network_mode: none
+
+  shellcheck:
+    <<: *quality-tool
+    image: koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
+    entrypoint:
+      - shellcheck
+    network_mode: none

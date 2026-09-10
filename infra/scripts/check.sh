@@ -48,6 +48,7 @@ export COMPOSE_PROJECT_NAME=alittlemore-infra
 export COMPOSE_DISABLE_ENV_FILE=1
 unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES
 
+docker compose --file docker-compose.quality.yml config --quiet
 docker compose --env-file /dev/null config --quiet
 docker compose --env-file /dev/null config --format json \
     | python3 infra/scripts/list_compose_build_images.py >/dev/null

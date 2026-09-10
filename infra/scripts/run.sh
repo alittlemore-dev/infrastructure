@@ -172,7 +172,7 @@ verify_runtime_restart_policies() {
 }
 
 build_and_validate_candidate_edge() {
-    export NGINX_IMAGE="${NGINX_IMAGE_REPOSITORY}:1.31.3-${target_slot}"
+    export NGINX_IMAGE="${NGINX_IMAGE_REPOSITORY}:${target_slot}"
     docker compose build nginx
     docker compose run \
         --rm \
@@ -306,7 +306,7 @@ restore_previous_edge() {
     export PERSONAL_WORKSPACE_ACTIVE_FRONTEND="personal-workspace-frontend-${previous_slot}"
     export COMPETENCY_ACTIVE_BACKEND="competency-backend-${previous_slot}"
     export COMPETENCY_ACTIVE_FRONTEND="competency-frontend-${previous_slot}"
-    export NGINX_IMAGE="${NGINX_IMAGE_REPOSITORY}:1.31.3-${previous_slot}"
+    export NGINX_IMAGE="${NGINX_IMAGE_REPOSITORY}:${previous_slot}"
 
     if ! compose_up_wait --no-build --pull never --force-recreate nginx; then
         echo "Deployment failed and nginx rollback to slot ${previous_slot} also failed." >&2

@@ -40,6 +40,7 @@ class MakeInterfaceTest(unittest.TestCase):
             "status",
             "secrets-verify",
             "security-images",
+            "dependencies-status",
         ):
             self.assertIn(target, result.stdout)
 
@@ -48,6 +49,13 @@ class MakeInterfaceTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(1, result.stdout.count("infra/scripts/run_tests.py"), result.stdout)
+
+    def test_dependency_status_is_an_explicit_read_only_workflow(self) -> None:
+        result = run_make("--dry-run", "dependencies-status")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("infra/scripts/dependencies_status.py", result.stdout)
+        self.assertNotIn("infra/scripts/run.sh", result.stdout)
 
     def test_compatibility_aliases_delegate_to_canonical_targets(self) -> None:
         for compatibility_target, canonical_target in (

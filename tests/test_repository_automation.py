@@ -28,6 +28,15 @@ def copy_script(source_name: str, repo_dir: Path) -> Path:
 
 
 class RepositoryAutomationTest(unittest.TestCase):
+    def test_dependabot_covers_supported_dependency_manifests(self) -> None:
+        config_path = ROOT / ".github/dependabot.yml"
+
+        self.assertTrue(config_path.is_file())
+        config = config_path.read_text(encoding="utf-8")
+        for ecosystem in ("github-actions", "docker-compose", "docker"):
+            self.assertIn(f'package-ecosystem: "{ecosystem}"', config)
+        self.assertFalse((ROOT / "renovate.json").exists())
+
     def test_validation_discovers_json_and_does_not_run_tests(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             repo_dir = Path(temporary_directory)
@@ -71,6 +80,7 @@ class RepositoryAutomationTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("infra/new-component/contract.json", commands)
         self.assertIn("infra/scripts/list_compose_build_images.py", commands)
+        self.assertIn("docker-compose.quality.yml config --quiet", commands)
         self.assertNotIn("-m unittest", commands)
 
     def test_lint_discovers_every_dockerfile(self) -> None:
@@ -110,8 +120,12 @@ class RepositoryAutomationTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("infra/new-component/Dockerfile", invocations)
-        self.assertRegex(invocations, r"hadolint/hadolint:v2\.14\.0@sha256:[0-9a-f]{64}")
-        self.assertRegex(invocations, r"koalaman/shellcheck:v0\.11\.0@sha256:[0-9a-f]{64}")
+        self.assertIn("docker-compose.quality.yml run --rm --no-deps", invocations)
+        self.assertIn(" hadolint --failure-threshold error ", invocations)
+        self.assertIn(" shellcheck infra/scripts/docker_lint.sh", invocations)
+        self.assertIn("infra/scripts/example.sh", invocations)
+        self.assertNotIn("hadolint/hadolint", invocations)
+        self.assertNotIn("koalaman/shellcheck", invocations)
 
     def test_image_scan_uses_unique_effective_compose_images(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -148,7 +162,7 @@ class RepositoryAutomationTest(unittest.TestCase):
             environment["AUTOMATION_LOG"] = str(log)
 
             result = subprocess.run(
-                ["bash", str(script), "images", "trivy:test"],
+                ["bash", str(script), "images"],
                 cwd=repo_dir,
                 env=environment,
                 check=False,
@@ -156,7 +170,9 @@ class RepositoryAutomationTest(unittest.TestCase):
                 text=True,
                 timeout=10,
             )
-            invocations = log.read_text(encoding="utf-8").splitlines()
+            invocations = (
+                log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+            )
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("compose build", invocations)
@@ -172,7 +188,12 @@ class RepositoryAutomationTest(unittest.TestCase):
         ):
             self.assertEqual(
                 1,
-                sum(command.startswith("run ") and command.endswith(image) for command in invocations),
+                sum(
+                    "docker-compose.quality.yml run --rm --no-deps" in command
+                    and " trivy " in command
+                    and command.endswith(image)
+                    for command in invocations
+                ),
                 image,
             )
 

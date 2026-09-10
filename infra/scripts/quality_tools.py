@@ -42,9 +42,7 @@ class ToolSpec:
     version_arguments: tuple[str, ...] = ("--version",)
 
 
-# renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION = "3.13.3"
-# renovate: datasource=github-releases depName=FiloSottile/age
 AGE_VERSION = "1.3.2"
 
 TOOLS: dict[str, ToolSpec] = {

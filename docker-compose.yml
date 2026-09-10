@@ -406,7 +406,7 @@ services:
     build:
       context: .
       dockerfile: infra/minio/Dockerfile
-    image: alittlemore-infra/minio:RELEASE.2025-09-07T16-13-09Z
+    image: alittlemore-infra/minio:local
     pull_policy: never
     container_name: alittlemore_infra_minio
     user: "10002:10002"
@@ -531,7 +531,7 @@ services:
     build:
       context: .
       dockerfile: infra/nginx/Dockerfile
-    image: ${NGINX_IMAGE:-alittlemore-infra/nginx:1.31.3}
+    image: ${NGINX_IMAGE:-alittlemore-infra/nginx:local}
     pull_policy: never
     container_name: alittlemore_infra_nginx
     user: "101:101"
@@ -602,7 +602,7 @@ services:
     build:
       context: .
       dockerfile: infra/cert-sync/Dockerfile
-    image: alittlemore-infra/cert-sync:alpine3.22.2-openssl3.5.7
+    image: alittlemore-infra/cert-sync:local
     pull_policy: never
     container_name: alittlemore_infra_cert_sync
     user: "0:0"
