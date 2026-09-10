@@ -41,8 +41,19 @@ class MakeInterfaceTest(unittest.TestCase):
             "secrets-verify",
             "security-images",
             "dependencies-status",
+            "dev",
+            "dev-trust",
         ):
             self.assertIn(target, result.stdout)
+
+    def test_local_development_has_only_two_public_entrypoints(self) -> None:
+        dev = run_make("--dry-run", "dev")
+        trust = run_make("--dry-run", "dev-trust")
+
+        self.assertEqual(0, dev.returncode, dev.stderr)
+        self.assertEqual(0, trust.returncode, trust.stderr)
+        self.assertEqual("bash infra/scripts/dev.sh\n", dev.stdout)
+        self.assertEqual("bash infra/scripts/dev_tls.sh trust\n", trust.stdout)
 
     def test_quality_reaches_the_test_runner_once(self) -> None:
         result = run_make("--dry-run", "quality")

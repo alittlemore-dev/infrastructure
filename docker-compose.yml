@@ -56,7 +56,7 @@ x-personal-workspace-backend: &personal-workspace-backend
   networks:
     - personal-workspace-network
   env_file:
-    - ./config/personal-workspace/production.env
+    - ${PERSONAL_WORKSPACE_ENV_FILE:-./config/personal-workspace/production.env}
   environment: &personal-workspace-backend-environment
     APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
@@ -95,7 +95,7 @@ x-competency-backend: &competency-backend
   networks:
     - competency-network
   env_file:
-    - ./config/competency-trainer/production.env
+    - ${COMPETENCY_ENV_FILE:-./config/competency-trainer/production.env}
   environment: &competency-backend-environment
     AGENT_ACCESS_CERTIFICATE_CHAIN_FILE: /run/secrets/agent_certificate_chain
     AGENT_ACCESS_ISSUING_CERTIFICATE_FILE: /run/secrets/agent_issuing_certificate

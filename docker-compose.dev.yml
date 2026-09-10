@@ -1,0 +1,137 @@
+x-personal-workspace-dev-image: &personal-workspace-dev-image
+  image: alittlemore-dev/personal-workspace-backend:local
+  pull_policy: never
+
+x-competency-dev-image: &competency-dev-image
+  image: alittlemore-dev/competency-trainer-backend:local
+  pull_policy: never
+  environment:
+    AUTH_PUBLIC_KEY: ${COMPETENCY_AUTH_PUBLIC_KEY:?local auth public key must be generated}
+
+services:
+  personal-workspace-backend-blue:
+    <<: *personal-workspace-dev-image
+    build:
+      context: ${PERSONAL_WORKSPACE_BUILD_CONTEXT:?Personal Workspace backend checkout is required}
+      dockerfile: Dockerfile
+    container_name: alittlemore_dev_personal_workspace_backend_blue
+
+  personal-workspace-backend-green:
+    <<: *personal-workspace-dev-image
+    container_name: alittlemore_dev_personal_workspace_backend_green
+    profiles: [production-only]
+
+  personal-workspace-backend-init:
+    <<: *personal-workspace-dev-image
+
+  personal-workspace-taskiq-worker-blue:
+    <<: *personal-workspace-dev-image
+    container_name: alittlemore_dev_personal_workspace_taskiq_worker_blue
+
+  personal-workspace-taskiq-worker-green:
+    <<: *personal-workspace-dev-image
+    container_name: alittlemore_dev_personal_workspace_taskiq_worker_green
+    profiles: [production-only]
+
+  personal-workspace-taskiq-scheduler-blue:
+    <<: *personal-workspace-dev-image
+    container_name: alittlemore_dev_personal_workspace_taskiq_scheduler_blue
+
+  personal-workspace-taskiq-scheduler-green:
+    <<: *personal-workspace-dev-image
+    container_name: alittlemore_dev_personal_workspace_taskiq_scheduler_green
+    profiles: [production-only]
+
+  personal-workspace-frontend-blue:
+    image: alittlemore-dev/personal-workspace-frontend:local
+    pull_policy: never
+    build:
+      context: ${PERSONAL_WORKSPACE_FRONTEND_BUILD_CONTEXT:?Personal Workspace frontend checkout is required}
+      dockerfile: Dockerfile
+    container_name: alittlemore_dev_personal_workspace_frontend_blue
+
+  personal-workspace-frontend-green:
+    image: alittlemore-dev/personal-workspace-frontend:local
+    pull_policy: never
+    container_name: alittlemore_dev_personal_workspace_frontend_green
+    profiles: [production-only]
+
+  competency-backend-blue:
+    <<: *competency-dev-image
+    build:
+      context: ${COMPETENCY_BUILD_CONTEXT:?Competency Trainer backend checkout is required}
+      dockerfile: Dockerfile
+    container_name: alittlemore_dev_competency_backend_blue
+
+  competency-backend-green:
+    <<: *competency-dev-image
+    container_name: alittlemore_dev_competency_backend_green
+    profiles: [production-only]
+
+  competency-backend-init:
+    <<: *competency-dev-image
+
+  competency-taskiq-worker-blue:
+    <<: *competency-dev-image
+    container_name: alittlemore_dev_competency_taskiq_worker_blue
+
+  competency-taskiq-worker-green:
+    <<: *competency-dev-image
+    container_name: alittlemore_dev_competency_taskiq_worker_green
+    profiles: [production-only]
+
+  competency-taskiq-scheduler-blue:
+    <<: *competency-dev-image
+    container_name: alittlemore_dev_competency_taskiq_scheduler_blue
+
+  competency-taskiq-scheduler-green:
+    <<: *competency-dev-image
+    container_name: alittlemore_dev_competency_taskiq_scheduler_green
+    profiles: [production-only]
+
+  competency-frontend-blue:
+    image: alittlemore-dev/competency-trainer-frontend:local
+    pull_policy: never
+    build:
+      context: ${COMPETENCY_FRONTEND_BUILD_CONTEXT:?Competency Trainer frontend checkout is required}
+      dockerfile: Dockerfile
+    container_name: alittlemore_dev_competency_frontend_blue
+
+  competency-frontend-green:
+    image: alittlemore-dev/competency-trainer-frontend:local
+    pull_policy: never
+    container_name: alittlemore_dev_competency_frontend_green
+    profiles: [production-only]
+
+  personal-workspace-postgres:
+    container_name: alittlemore_dev_personal_workspace_postgres
+
+  personal-workspace-valkey:
+    container_name: alittlemore_dev_personal_workspace_valkey
+
+  competency-postgres:
+    container_name: alittlemore_dev_competency_postgres
+
+  competency-valkey:
+    container_name: alittlemore_dev_competency_valkey
+
+  minio:
+    image: alittlemore-dev/minio:local
+    container_name: alittlemore_dev_minio
+
+  minio-bootstrap:
+    container_name: alittlemore_dev_minio_bootstrap
+
+  databasus:
+    container_name: alittlemore_dev_databasus
+
+  nginx:
+    container_name: alittlemore_dev_nginx
+    volumes:
+      - ${NGINX_CERTS_DIR:?local TLS directory must be generated}:/certs:ro
+
+  certbot:
+    profiles: [letsencrypt, production-only]
+
+  cert-sync:
+    profiles: [production-only]

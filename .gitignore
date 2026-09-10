@@ -1,6 +1,7 @@
 .env
 .deploy-state/
 .deploy-payload/
+.dev-state/
 .cache/
 .alittlemore-runtime-root
 infra/nginx/certs/

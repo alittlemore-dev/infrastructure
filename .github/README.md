@@ -6,7 +6,8 @@ The unified Docker Compose runtime and deployment repository for
 [Personal Workspace](https://github.com/alittlemore-dev/personal-workspace) and
 [Competency Trainer](https://github.com/alittlemore-dev/competency-trainer). Application source
 code lives in its own repositories and is published as container images; this repository owns the
-production topology, configuration, secrets, TLS edge, and release lifecycle.
+production topology, configuration, secrets, TLS edge, release lifecycle, and the integrated local
+development entrypoint.
 
 ## Features
 
@@ -17,7 +18,20 @@ production topology, configuration, secrets, TLS edge, and release lifecycle.
 - Service-scoped configuration with native variable names and SOPS/age-encrypted secrets.
 - Public HTTPS application routes with operational tools and the Agent API restricted to the VPN.
 
-## Run
+## Local development
+
+Keep `infra`, `personal-workspace`, and `competency-trainer` next to each other. Trust the local CA
+once, then start the complete stack:
+
+```bash
+make dev-trust
+make dev
+```
+
+Applications are available at `https://personal-workspace.localhost` and
+`https://competency.localhost`. Generated logins are stored in `.dev-state/credentials`.
+
+## Production deployment
 
 Prepare the production configuration, age identity, encrypted secrets, DNS, and registry login as
 described in [Production deployment](../docs/production-deploy.md). On the first deployment, issue

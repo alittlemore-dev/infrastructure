@@ -6,8 +6,8 @@
 [Personal Workspace](https://github.com/alittlemore-dev/personal-workspace) и
 [Competency Trainer](https://github.com/alittlemore-dev/competency-trainer). Исходный код
 приложений находится в отдельных репозиториях и публикуется как контейнерные образы; этот
-репозиторий отвечает за production-топологию, конфигурацию, секреты, TLS edge и жизненный цикл
-релизов.
+репозиторий отвечает за production-топологию, конфигурацию, секреты, TLS edge, жизненный цикл
+релизов и единый интеграционный запуск локальной разработки.
 
 ## Возможности
 
@@ -19,7 +19,20 @@
   SOPS/age секреты.
 - Публичные HTTPS-маршруты приложений; служебные интерфейсы и Agent API доступны только через VPN.
 
-## Запуск
+## Локальная разработка
+
+Расположите `infra`, `personal-workspace` и `competency-trainer` рядом. Один раз добавьте локальный
+центр сертификации в доверенные, затем запустите весь стек:
+
+```bash
+make dev-trust
+make dev
+```
+
+Приложения доступны по адресам `https://personal-workspace.localhost` и
+`https://competency.localhost`. Сгенерированные логины хранятся в `.dev-state/credentials`.
+
+## Production-запуск
 
 Подготовьте production-конфигурацию, age identity, зашифрованные секреты, DNS и доступ к registry
 по инструкции [Production deployment](../docs/production-deploy.md). При первом deployment

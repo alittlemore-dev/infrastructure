@@ -138,8 +138,10 @@ class EnvironmentContractTest(unittest.TestCase):
         generated = {
             "PERSONAL_WORKSPACE_ACTIVE_BACKEND",
             "PERSONAL_WORKSPACE_ACTIVE_FRONTEND",
+            "PERSONAL_WORKSPACE_ENV_FILE",
             "COMPETENCY_ACTIVE_BACKEND",
             "COMPETENCY_ACTIVE_FRONTEND",
+            "COMPETENCY_ENV_FILE",
             "NGINX_IMAGE",
         }
         self.assertEqual(set(), compose_variables - runtime_names - secret_path_names - generated)
@@ -153,8 +155,14 @@ class EnvironmentContractTest(unittest.TestCase):
             "x-competency-agent-secrets:", maxsplit=1
         )[0]
 
-        self.assertIn("env_file:\n    - ./config/personal-workspace/production.env", personal_anchor)
-        self.assertIn("env_file:\n    - ./config/competency-trainer/production.env", competency_anchor)
+        self.assertIn(
+            "env_file:\n    - ${PERSONAL_WORKSPACE_ENV_FILE:-./config/personal-workspace/production.env}",
+            personal_anchor,
+        )
+        self.assertIn(
+            "env_file:\n    - ${COMPETENCY_ENV_FILE:-./config/competency-trainer/production.env}",
+            competency_anchor,
+        )
         self.assertNotIn("${PERSONAL_WORKSPACE_APP_DEBUG}", personal_anchor)
         self.assertNotIn("${COMPETENCY_APP_DEBUG}", competency_anchor)
 

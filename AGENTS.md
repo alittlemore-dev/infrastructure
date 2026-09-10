@@ -31,3 +31,7 @@
   actionable error when their prerequisites cannot be prepared; they must not silently skip.
 - Keep the default Make goal read-only and self-documenting. Production mutations and
   security-sensitive paths, identities, and credentials must remain explicit operator choices.
+- Local-development entrypoints must build application images from explicitly validated sibling
+  checkouts and keep local configuration, secrets, certificates, Compose identity, and state
+  isolated from production. They must never fall back to production SOPS documents, registry
+  application images, domains, certificates, or deployment state.
