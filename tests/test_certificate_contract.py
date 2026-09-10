@@ -65,6 +65,7 @@ class CertificateContractTest(unittest.TestCase):
         self.assertIn("/usr/local/bin/alittlemore-nginx-entrypoint", run_script)
         self.assertIn("--pull never", run_script)
         self.assertIn('--resolve "${hostname}:443:127.0.0.1"', edge_checks)
+        self.assertIn('"${APP_DOMAIN}|/ru/how-this-site-is-built"', edge_checks)
         self.assertIn("verify_served_edge_certificates", run_script)
 
     def test_tls_reload_runs_nginx_syntax_and_served_certificate_checks(self) -> None:

@@ -22,6 +22,7 @@ readonly NGINX_IMAGE_REPOSITORY=alittlemore-infra/nginx
 readonly APPLICATION_IMAGE_SERVICES=(
     personal-workspace-backend-init
     competency-backend-init
+    frontend-blue
 )
 readonly INFRASTRUCTURE_SERVICES=(
     personal-workspace-postgres
@@ -158,6 +159,7 @@ verify_runtime_restart_policies() {
         "competency-backend-${target_slot}"
         "competency-taskiq-worker-${target_slot}"
         "competency-taskiq-scheduler-${target_slot}"
+        "frontend-${target_slot}"
         "${INFRASTRUCTURE_SERVICES[@]}"
     )
 
@@ -269,7 +271,8 @@ stop_previous_slot() {
         "personal-workspace-taskiq-scheduler-${previous}" \
         "competency-backend-${previous}" \
         "competency-taskiq-worker-${previous}" \
-        "competency-taskiq-scheduler-${previous}"; then
+        "competency-taskiq-scheduler-${previous}" \
+        "frontend-${previous}"; then
         echo "The new slot is active, but the previous slot could not be fully stopped." >&2
         return
     fi
@@ -289,13 +292,15 @@ restore_previous_edge() {
         docker compose stop nginx || return 1
         docker compose stop \
             "personal-workspace-backend-${target_slot}" \
-            "competency-backend-${target_slot}" || \
+            "competency-backend-${target_slot}" \
+            "frontend-${target_slot}" || \
             echo "Some first-deployment target application containers could not be stopped." >&2
         return
     fi
 
     export PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-${previous_slot}"
     export COMPETENCY_ACTIVE_BACKEND="competency-backend-${previous_slot}"
+    export FRONTEND_ACTIVE="frontend-${previous_slot}"
     export NGINX_IMAGE="${NGINX_IMAGE_REPOSITORY}:${previous_slot}"
 
     if ! compose_up_wait --no-build --pull never --force-recreate nginx; then
@@ -336,6 +341,7 @@ prepare_compose_secret_files "$target_slot"
 
 export PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-${target_slot}"
 export COMPETENCY_ACTIVE_BACKEND="competency-backend-${target_slot}"
+export FRONTEND_ACTIVE="frontend-${target_slot}"
 
 pull_application_images
 prepare_minio_volume_permissions
@@ -344,7 +350,8 @@ record_minio_credential_fingerprints
 run_backend_initializers
 compose_up_wait --no-build --pull never --force-recreate \
     "$PERSONAL_WORKSPACE_ACTIVE_BACKEND" \
-    "$COMPETENCY_ACTIVE_BACKEND"
+    "$COMPETENCY_ACTIVE_BACKEND" \
+    "$FRONTEND_ACTIVE"
 sync_certificates
 build_and_validate_candidate_edge
 edge_replaced=false

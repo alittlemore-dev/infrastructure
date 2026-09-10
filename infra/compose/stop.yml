@@ -29,6 +29,10 @@ services:
     image: scratch
   competency-taskiq-scheduler-green:
     image: scratch
+  frontend-blue:
+    image: scratch
+  frontend-green:
+    image: scratch
   personal-workspace-postgres:
     image: scratch
   personal-workspace-valkey:

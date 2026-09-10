@@ -96,6 +96,18 @@ class EdgeSecurityContractTest(unittest.TestCase):
         self.assertIn('taskiq-scheduler-${previous_slot}', transition)
         self.assertIn('taskiq-scheduler-${target_slot}', transition)
 
+    def test_unified_frontend_moves_with_the_global_deployment_slot(self) -> None:
+        blocks = compose_service_blocks(COMPOSE.read_text(encoding="utf-8"))
+        self.assertIn("frontend-blue", blocks)
+        self.assertIn("frontend-green", blocks)
+        self.assertNotIn("personal-workspace-frontend-blue", blocks)
+        self.assertNotIn("competency-frontend-blue", blocks)
+
+        run_script = (ROOT / "infra/scripts/run.sh").read_text(encoding="utf-8")
+        self.assertIn('export FRONTEND_ACTIVE="frontend-${target_slot}"', run_script)
+        self.assertIn('"frontend-${previous}"', run_script)
+        self.assertIn('"frontend-${target_slot}"', run_script)
+
     def test_slot_commit_is_atomic_and_first_deploy_failure_closes_the_edge(self) -> None:
         run_script = (ROOT / "infra/scripts/run.sh").read_text(encoding="utf-8")
         save_slot = run_script.split("save_active_slot()", maxsplit=1)[1].split(
@@ -191,7 +203,7 @@ class EdgeSecurityContractTest(unittest.TestCase):
             r"location \^~ /internal/agent/v1\s*\{\s*return 404;",
         )
 
-    def test_single_application_host_routes_namespaced_apis_to_existing_backend_paths(self) -> None:
+    def test_single_application_host_routes_namespaced_apis_and_unified_frontend(self) -> None:
         config = NGINX_TEMPLATE.read_text(encoding="utf-8")
         public_app = next(
             block
@@ -212,11 +224,11 @@ class EdgeSecurityContractTest(unittest.TestCase):
         self.assertRegex(public_app, r"location /api/\s*\{\s*return 404;")
         self.assertRegex(
             public_app,
-            r"location /\s*\{\s*add_header Retry-After \"60\" always;\s*return 503;",
+            r"location /\s*\{\s*proxy_pass http://frontend;",
         )
-        self.assertNotRegex(config, r"(?m)^upstream .*frontend")
-        self.assertNotIn("proxy_pass http://personal_workspace_frontend", config)
-        self.assertNotIn("proxy_pass http://competency_frontend", config)
+        self.assertRegex(config, r"(?m)^upstream frontend\s*\{")
+        self.assertIn("server ${FRONTEND_ACTIVE}:4000 resolve;", config)
+        self.assertEqual(1, config.count("proxy_pass http://frontend;"))
 
     def test_http_redirects_only_expected_public_hostnames(self) -> None:
         config = NGINX_TEMPLATE.read_text(encoding="utf-8")

@@ -35,10 +35,11 @@ and the next successful activation removes every other validated `incoming-<run>
 directory.
 
 Deploy runs are serialized and never cancel an in-progress stateful rollout. The deploy workflow
-does not clone or synchronize either application repository. Their build and publish pipelines
-own the two backend images described below. A deploy therefore uses whatever immutable image
-digests their `latest` tags resolve to when `make run` executes. Each reference is pulled once, and
-all services in that run start from that locally resolved tag without another pull.
+does not clone or synchronize the application repositories. It expects the three application
+images described below to have been published before deployment. A deploy therefore uses whatever
+immutable image digests their `latest` tags resolve to when `make run` executes. Each reference is
+pulled once, and all services in that run start from that locally resolved tag without another
+pull.
 
 Create a protected GitHub Environment named `production`, restrict it to `main`, and require a
 reviewer. Configure these deploy connection values:
@@ -95,15 +96,16 @@ not end in `/`. The application repositories build and publish these images:
 
 - `${IMAGE_REGISTRY}/personal-workspace-backend:latest`
 - `${IMAGE_REGISTRY}/competency-trainer-backend:latest`
+- `${IMAGE_REGISTRY}/frontend:latest`
 
 Every application service declares `pull_policy: always`. `make run` resolves and pulls each of
-the two references once, then starts every process with `--pull never`, so one deployment cannot
+the three references once, then starts every process with `--pull never`, so one deployment cannot
 mix different digests if a moving `latest` tag changes midway.
 
-No frontend repository or image is part of the current runtime. nginx reserves all non-API paths
-for one future SPA and returns `503 Service Unavailable` with `Retry-After` until that image exists.
-When the SPA is introduced, add one blue/green frontend service and replace only this fallback;
-the backend URL contract below does not need to change.
+The shared frontend repository currently contains the migrated Competency Trainer Angular SSR/CSR
+application. One blue/green frontend service owns every non-API route. Each frontend slot uses the
+matching Competency Trainer backend slot for SSR data requests while the frontend is expanded into
+the complete shared application. The namespaced public backend URL contract below is unchanged.
 
 ## Public routing
 
@@ -113,7 +115,7 @@ and translates the namespaced public paths before forwarding them:
 - `/api/personal-workspace/<path>` becomes `/api/<path>` on Personal Workspace;
 - `/api/competency/<path>` becomes `/api/<path>` on Competency Trainer;
 - `/healthz` checks the edge itself;
-- unknown `/api/*` paths return `404` and are never sent to the future SPA.
+- unknown `/api/*` paths return `404` and are never sent to the frontend.
 
 The gateway also rewrites backend redirects back into the public namespace. Competency Trainer's
 refresh-cookie path is rewritten from `/api/auth` to `/api/competency/auth`, so it remains scoped to
@@ -442,9 +444,9 @@ make -C /srv/alittlemore-dev/current certbot-sync
 
 `.deploy-state/active-slot` stores one global `blue` or `green` value. Deploy workflow runs append
 the validated `release-<run>-<attempt>` ID on the same atomic line so payload recovery can identify
-the runtime commit. Both projects move together; nginx never points one application at the new slot
-while the other remains on the old slot. The active containers continue using their original image
-digests even though their references end in `:latest`.
+the runtime commit. Both backends and the shared frontend move together; nginx never mixes runtime
+slots. The active containers continue using their original image digests even though their
+references end in `:latest`.
 
 Before the edge switch, `make run` must successfully:
 
@@ -452,23 +454,24 @@ Before the edge switch, `make run` must successfully:
 - make both PostgreSQL and Valkey pairs plus the shared MinIO healthy, complete the MinIO bootstrap,
   and start the shared Databasus container (Databasus has no container health probe);
 - run both backend initializers;
-- make both target backends healthy;
+- make both target backends and the shared target frontend healthy;
 - start both TaskIQ workers and schedulers.
 
 The certificate helper stages a new release, parses the key and certificate, checks their match,
 checks expiry and all three hostnames, applies restrictive permissions, and only then atomically
 moves the `current` symlink. Before replacing the edge, `make run` builds a slot-specific nginx
 image and runs its complete render plus `nginx -t` path in an isolated one-off container. Only then
-is nginx force-recreated with the target service names. The three HTTPS health checks use
-`--resolve ...:127.0.0.1`, so they always exercise the just-started local edge rather than an
-external DNS target.
+is nginx force-recreated with the target service names. The four HTTPS smoke checks cover the edge,
+a deterministic SSR route, and both APIs. They use `--resolve ...:127.0.0.1`, so they always
+exercise the just-started local edge rather than an external DNS target.
 
 The state file is updated and previous application containers are stopped only after restart-policy,
 served-certificate, and application checks succeed. A pre-switch failure leaves the old edge
 untouched. A post-switch failure automatically recreates nginx from the previous slot's preserved
 image and upstream names. On the first deployment there is no previous edge to restore, so a failed
-post-switch verification stops nginx and the target backend containers instead of leaving an
-unverified public edge running. Routing rollback does not undo database migrations.
+post-switch verification stops nginx, the target backend containers, and the target frontend
+container instead of leaving an unverified public edge running. Routing rollback does not undo
+database migrations.
 
 There is one public nginx container, so its force-recreation can cause a short edge interruption.
 It uses graceful `SIGQUIT` shutdown with a 30-second grace period, but requests exceeding that
@@ -481,7 +484,7 @@ not enforce backward-compatible or expand/contract migrations; releases with inc
 migrations must accept that cutover risk or arrange a maintenance window.
 
 Application `latest` is intentionally not a rollback identifier. For a controlled rollback, first
-retag the desired backend digests as `latest` in the registry, then rerun `make run`.
+retag the desired backend and frontend digests as `latest` in the registry, then rerun `make run`.
 
 ## Data and backup boundaries
 

@@ -12,11 +12,33 @@ x-backend-runtime: &backend-runtime
     - /tmp:mode=1777,uid=10001,gid=10001
   restart: unless-stopped
 
+x-frontend-runtime: &frontend-runtime
+  user: "1000:1000"
+  read_only: true
+  pull_policy: always
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:mode=1777,uid=1000,gid=1000
+  restart: unless-stopped
+
 x-backend-healthcheck: &backend-healthcheck
   test:
     [
       "CMD-SHELL",
       "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/healthcheck/ready', timeout=3).close()\"",
+    ]
+  interval: 5s
+  timeout: 5s
+  retries: 24
+
+x-frontend-healthcheck: &frontend-healthcheck
+  test:
+    [
+      "CMD-SHELL",
+      "node -e \"fetch('http://127.0.0.1:4000/healthz').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\"",
     ]
   interval: 5s
   timeout: 5s
@@ -295,6 +317,36 @@ services:
         condition: service_healthy
     healthcheck: *process-healthcheck
 
+  frontend-blue:
+    <<: *frontend-runtime
+    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/frontend:latest"
+    container_name: alittlemore_frontend_blue
+    networks:
+      - competency-network
+    environment:
+      PORT: 4000
+      APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+      APP_DOMAIN: ${APP_DOMAIN}
+      SSR_API_ORIGIN: http://competency-backend-blue:8080
+      SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${APP_DOMAIN}
+      NG_ALLOWED_HOSTS: ${APP_DOMAIN}
+    healthcheck: *frontend-healthcheck
+
+  frontend-green:
+    <<: *frontend-runtime
+    image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/frontend:latest"
+    container_name: alittlemore_frontend_green
+    networks:
+      - competency-network
+    environment:
+      PORT: 4000
+      APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+      APP_DOMAIN: ${APP_DOMAIN}
+      SSR_API_ORIGIN: http://competency-backend-green:8080
+      SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${APP_DOMAIN}
+      NG_ALLOWED_HOSTS: ${APP_DOMAIN}
+    healthcheck: *frontend-healthcheck
+
   personal-workspace-postgres:
     image: postgres:18.4-alpine
     container_name: personal_workspace_postgres
@@ -485,6 +537,7 @@ services:
       APP_DOMAIN: ${APP_DOMAIN}
       PERSONAL_WORKSPACE_ACTIVE_BACKEND: ${PERSONAL_WORKSPACE_ACTIVE_BACKEND:-personal-workspace-backend-blue}
       COMPETENCY_ACTIVE_BACKEND: ${COMPETENCY_ACTIVE_BACKEND:-competency-backend-blue}
+      FRONTEND_ACTIVE: ${FRONTEND_ACTIVE:-frontend-blue}
       MINIO_DOMAIN: ${MINIO_DOMAIN}
       MINIO_PUBLIC_URL: ${APP_URL_SCHEMA}://${MINIO_DOMAIN}
       SSL_CERT: ${SSL_CERT}

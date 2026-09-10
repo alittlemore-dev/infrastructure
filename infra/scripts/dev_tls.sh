@@ -6,6 +6,7 @@ repo_dir="$(cd -- "${script_dir}/../.." && pwd)"
 state_dir="${ALITTLEMORE_DEV_STATE_DIR:-${repo_dir}/.dev-state}"
 personal_workspace_dir="${PERSONAL_WORKSPACE_DIR:-${repo_dir}/../personal-workspace}"
 competency_trainer_dir="${COMPETENCY_TRAINER_DIR:-${repo_dir}/../competency-trainer}"
+frontend_dir="${FRONTEND_DIR:-${repo_dir}/../frontend}"
 ca_certificate="${state_dir}/tls/local-development-ca.cert.pem"
 server_certificate="${state_dir}/tls/fullchain.pem"
 
@@ -25,7 +26,8 @@ prepare_state() {
         --repo-dir "$repo_dir" \
         --state-dir "$state_dir" \
         --personal-workspace-dir "$personal_workspace_dir" \
-        --competency-trainer-dir "$competency_trainer_dir" >/dev/null
+        --competency-trainer-dir "$competency_trainer_dir" \
+        --frontend-dir "$frontend_dir" >/dev/null
 }
 
 verify_trust() {

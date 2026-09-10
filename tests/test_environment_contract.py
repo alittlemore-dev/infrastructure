@@ -140,6 +140,7 @@ class EnvironmentContractTest(unittest.TestCase):
             "PERSONAL_WORKSPACE_ENV_FILE",
             "COMPETENCY_ACTIVE_BACKEND",
             "COMPETENCY_ENV_FILE",
+            "FRONTEND_ACTIVE",
             "NGINX_IMAGE",
         }
         self.assertEqual(set(), compose_variables - runtime_names - secret_path_names - generated)
@@ -386,13 +387,18 @@ class EnvironmentContractTest(unittest.TestCase):
         self.assertNotIn("AGE_KEYGEN_INTEGRATION_BINARY", workflow)
         self.assertEqual(workflow.count("make quality"), 1)
 
-    def test_backend_runtime_has_a_read_only_root_filesystem(self) -> None:
+    def test_application_runtime_has_a_read_only_root_filesystem(self) -> None:
         compose = COMPOSE.read_text(encoding="utf-8")
         backend_anchor = compose.split("x-backend-runtime:", maxsplit=1)[1].split(
+            "x-frontend-runtime:", maxsplit=1
+        )[0]
+        frontend_anchor = compose.split("x-frontend-runtime:", maxsplit=1)[1].split(
             "x-backend-healthcheck:", maxsplit=1
         )[0]
         self.assertIn("read_only: true", backend_anchor)
-        self.assertNotIn("x-frontend-runtime:", compose)
+        self.assertIn("read_only: true", frontend_anchor)
+        self.assertRegex(compose, r"(?m)^  frontend-blue:")
+        self.assertRegex(compose, r"(?m)^  frontend-green:")
         self.assertNotRegex(compose, r"(?m)^  (?:personal-workspace|competency)-frontend-")
 
     def test_application_images_use_registry_latest_and_infrastructure_is_pinned(self) -> None:
@@ -400,9 +406,9 @@ class EnvironmentContractTest(unittest.TestCase):
         for image in (
             "personal-workspace-backend:latest",
             "competency-trainer-backend:latest",
+            "frontend:latest",
         ):
             self.assertIn('${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/' + image, compose)
-        self.assertNotIn("-frontend:latest", compose)
         for image in (
             "postgres:18.4-alpine",
             "valkey/valkey:9.0.1",

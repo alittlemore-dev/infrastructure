@@ -21,6 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-dir", required=True, type=Path)
     parser.add_argument("--personal-workspace-dir", required=True, type=Path)
     parser.add_argument("--competency-trainer-dir", required=True, type=Path)
+    parser.add_argument("--frontend-dir", required=True, type=Path)
     return parser.parse_args()
 
 
@@ -33,12 +34,12 @@ def ensure_directory(path: Path, mode: int = 0o700) -> None:
     path.chmod(mode)
 
 
-def validate_checkout(path: Path, label: str) -> Path:
+def validate_checkout(path: Path, label: str, required_paths: tuple[str, ...]) -> Path:
     try:
         resolved = path.expanduser().resolve(strict=True)
     except FileNotFoundError as exc:
         raise DevStateError(f"{label} checkout could not be found: {path}") from exc
-    for relative_path in ("backend/Dockerfile",):
+    for relative_path in required_paths:
         candidate = resolved / relative_path
         if not candidate.is_file():
             raise DevStateError(f"{label} checkout is missing {relative_path}: {resolved}")
@@ -369,8 +370,13 @@ def dotenv_value(value: str) -> str:
 
 def prepare(args: argparse.Namespace) -> None:
     repo_dir = args.repo_dir.expanduser().resolve(strict=True)
-    personal_workspace = validate_checkout(args.personal_workspace_dir, "Personal Workspace")
-    competency_trainer = validate_checkout(args.competency_trainer_dir, "Competency Trainer")
+    personal_workspace = validate_checkout(
+        args.personal_workspace_dir, "Personal Workspace", ("backend/Dockerfile",)
+    )
+    competency_trainer = validate_checkout(
+        args.competency_trainer_dir, "Competency Trainer", ("backend/Dockerfile",)
+    )
+    frontend = validate_checkout(args.frontend_dir, "Frontend", ("Dockerfile",))
     state_dir = args.state_dir.expanduser().absolute()
     ensure_directory(state_dir)
     state_dir = state_dir.resolve(strict=True)
@@ -424,6 +430,7 @@ def prepare(args: argparse.Namespace) -> None:
     environment = {
         "PERSONAL_WORKSPACE_BUILD_CONTEXT": str(personal_workspace / "backend"),
         "COMPETENCY_BUILD_CONTEXT": str(competency_trainer / "backend"),
+        "FRONTEND_BUILD_CONTEXT": str(frontend),
         "NGINX_CERTS_DIR": str(state_dir / "tls"),
         "COMPETENCY_AUTH_PUBLIC_KEY": auth_public_key.read_text(encoding="utf-8"),
         "COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE": str(platform_secrets / "minio_root_access_key"),

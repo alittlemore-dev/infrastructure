@@ -4,10 +4,11 @@
 
 Единый репозиторий Docker Compose runtime и production deployment для
 [Personal Workspace](https://github.com/alittlemore-dev/personal-workspace) и
-[Competency Trainer](https://github.com/alittlemore-dev/competency-trainer). Исходный код
-приложений находится в отдельных репозиториях и публикуется как контейнерные образы; этот
-репозиторий отвечает за production-топологию, конфигурацию, секреты, TLS edge, жизненный цикл
-релизов и единый интеграционный запуск локальной разработки.
+[Competency Trainer](https://github.com/alittlemore-dev/competency-trainer), а также общего
+[frontend](https://github.com/alittlemore-dev/frontend). Исходный код приложений находится в
+отдельных репозиториях и публикуется как контейнерные образы; этот репозиторий отвечает за
+production-топологию, конфигурацию, секреты, TLS edge, жизненный цикл релизов и единый
+интеграционный запуск локальной разработки.
 
 ## Возможности
 
@@ -20,23 +21,21 @@
 - Разделённые по сервисам конфигурация с исходными именами переменных и зашифрованные через
   SOPS/age секреты.
 - Публичные HTTPS API; служебные интерфейсы и Agent API доступны только через VPN.
-- Зарезервированные non-API маршруты для будущего единого SPA; текущему deployment не нужен
-  временный frontend image.
+- Один общий frontend image, который обслуживает все non-API маршруты через nginx edge.
 
 ## Локальная разработка
 
-Расположите `infra`, `personal-workspace` и `competency-trainer` рядом. Один раз добавьте локальный
-центр сертификации в доверенные, затем запустите весь стек:
+Расположите `infra`, `frontend`, `personal-workspace` и `competency-trainer` рядом. Один раз добавьте
+локальный центр сертификации в доверенные, затем запустите весь стек:
 
 ```bash
 make dev-trust
 make dev
 ```
 
-Общий edge доступен по адресу `https://alittlemore.localhost`. API Personal Workspace начинаются с
-`/api/personal-workspace/`, API Competency Trainer — с `/api/competency/`, а non-API маршруты
-возвращают `503` до добавления единого SPA. Сгенерированные логины хранятся в
-`.dev-state/credentials`.
+Общие edge и frontend доступны по адресу `https://alittlemore.localhost`. API Personal Workspace
+начинаются с `/api/personal-workspace/`, а API Competency Trainer — с `/api/competency/`.
+Сгенерированные логины хранятся в `.dev-state/credentials`.
 
 ## Production-запуск
 

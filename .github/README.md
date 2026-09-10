@@ -4,10 +4,11 @@
 
 The unified Docker Compose runtime and deployment repository for
 [Personal Workspace](https://github.com/alittlemore-dev/personal-workspace) and
-[Competency Trainer](https://github.com/alittlemore-dev/competency-trainer). Application source
-code lives in its own repositories and is published as container images; this repository owns the
-production topology, configuration, secrets, TLS edge, release lifecycle, and the integrated local
-development entrypoint.
+[Competency Trainer](https://github.com/alittlemore-dev/competency-trainer), with the shared
+[frontend](https://github.com/alittlemore-dev/frontend). Application source code lives in its own
+repositories and is published as container images; this repository owns the production topology,
+configuration, secrets, TLS edge, release lifecycle, and the integrated local development
+entrypoint.
 
 ## Features
 
@@ -19,22 +20,21 @@ development entrypoint.
 - Synchronized blue/green application rollouts with health checks and automatic routing rollback.
 - Service-scoped configuration with native variable names and SOPS/age-encrypted secrets.
 - Public HTTPS APIs with operational tools and the Agent API restricted to the VPN.
-- A reserved non-API route space for a future unified SPA; no placeholder frontend image is
-  required by the current deployment.
+- One shared frontend image serving every non-API route through the nginx edge.
 
 ## Local development
 
-Keep `infra`, `personal-workspace`, and `competency-trainer` next to each other. Trust the local CA
-once, then start the complete stack:
+Keep `infra`, `frontend`, `personal-workspace`, and `competency-trainer` next to each other. Trust
+the local CA once, then start the complete stack:
 
 ```bash
 make dev-trust
 make dev
 ```
 
-The shared edge is available at `https://alittlemore.localhost`. Personal Workspace APIs start at
-`/api/personal-workspace/`, Competency Trainer APIs at `/api/competency/`, and non-API routes return
-`503` until the unified SPA is added. Generated logins are stored in `.dev-state/credentials`.
+The shared edge and frontend are available at `https://alittlemore.localhost`. Personal Workspace
+APIs start at `/api/personal-workspace/`, and Competency Trainer APIs at `/api/competency/`.
+Generated logins are stored in `.dev-state/credentials`.
 
 ## Production deployment
 

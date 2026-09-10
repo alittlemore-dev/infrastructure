@@ -13,12 +13,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "infra/scripts"
+
+
 def create_checkout(root: Path, name: str) -> Path:
     checkout = root / name
-    for component in ("backend",):
-        directory = checkout / component
-        directory.mkdir(parents=True)
-        (directory / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    directory = checkout / "backend"
+    directory.mkdir(parents=True)
+    (directory / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    return checkout
+
+
+def create_frontend_checkout(root: Path) -> Path:
+    checkout = root / "frontend"
+    checkout.mkdir()
+    (checkout / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
     return checkout
 
 
@@ -26,6 +34,7 @@ def run_state_preparer(
     state_dir: Path,
     personal_workspace: Path,
     competency_trainer: Path,
+    frontend: Path,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
@@ -39,6 +48,8 @@ def run_state_preparer(
             str(personal_workspace),
             "--competency-trainer-dir",
             str(competency_trainer),
+            "--frontend-dir",
+            str(frontend),
         ],
         cwd=ROOT,
         check=False,
@@ -60,7 +71,8 @@ class DevStateTest(unittest.TestCase):
             state_dir = root / "dev-state"
             personal_workspace = create_checkout(root, "personal-workspace")
             competency_trainer = create_checkout(root, "competency-trainer")
-            first = run_state_preparer(state_dir, personal_workspace, competency_trainer)
+            frontend = create_frontend_checkout(root)
+            first = run_state_preparer(state_dir, personal_workspace, competency_trainer, frontend)
             self.assertEqual(0, first.returncode, first.stderr)
 
             stable_files = (
@@ -74,7 +86,7 @@ class DevStateTest(unittest.TestCase):
             )
             initial_contents = {path: path.read_bytes() for path in stable_files}
 
-            second = run_state_preparer(state_dir, personal_workspace, competency_trainer)
+            second = run_state_preparer(state_dir, personal_workspace, competency_trainer, frontend)
             self.assertEqual(0, second.returncode, second.stderr)
             self.assertEqual(initial_contents, {path: path.read_bytes() for path in stable_files})
 
@@ -129,8 +141,11 @@ class DevStateTest(unittest.TestCase):
             linked_state.symlink_to(real_state, target_is_directory=True)
             personal_workspace = create_checkout(root, "personal-workspace")
             competency_trainer = create_checkout(root, "competency-trainer")
+            frontend = create_frontend_checkout(root)
 
-            result = run_state_preparer(linked_state, personal_workspace, competency_trainer)
+            result = run_state_preparer(
+                linked_state, personal_workspace, competency_trainer, frontend
+            )
 
         self.assertEqual(1, result.returncode)
         self.assertIn("must not be a symlink", result.stderr)
@@ -139,6 +154,7 @@ class DevStateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             competency_trainer = create_checkout(root, "competency-trainer")
+            frontend = create_frontend_checkout(root)
             result = subprocess.run(
                 [
                     sys.executable,
@@ -151,6 +167,8 @@ class DevStateTest(unittest.TestCase):
                     str(root / "missing-personal-workspace"),
                     "--competency-trainer-dir",
                     str(competency_trainer),
+                    "--frontend-dir",
+                    str(frontend),
                 ],
                 cwd=ROOT,
                 check=False,
@@ -170,7 +188,10 @@ class DevComposeTest(unittest.TestCase):
             state_dir = root / "dev-state"
             personal_workspace = create_checkout(root, "personal-workspace")
             competency_trainer = create_checkout(root, "competency-trainer")
-            prepared = run_state_preparer(state_dir, personal_workspace, competency_trainer)
+            frontend = create_frontend_checkout(root)
+            prepared = run_state_preparer(
+                state_dir, personal_workspace, competency_trainer, frontend
+            )
             self.assertEqual(0, prepared.returncode, prepared.stderr)
 
             result = subprocess.run(
@@ -205,6 +226,7 @@ class DevComposeTest(unittest.TestCase):
         expected_builds = {
             "personal-workspace-backend-blue": personal_workspace / "backend",
             "competency-backend-blue": competency_trainer / "backend",
+            "frontend-blue": frontend,
         }
         for service_name, context in expected_builds.items():
             service = services[service_name]
@@ -238,6 +260,7 @@ class DevComposeTest(unittest.TestCase):
             "competency-backend-green",
             "competency-taskiq-worker-green",
             "competency-taskiq-scheduler-green",
+            "frontend-green",
             "certbot",
             "cert-sync",
         ):
@@ -263,6 +286,7 @@ class DevOrchestrationTest(unittest.TestCase):
             binary_dir.mkdir()
             personal_workspace = create_checkout(root, "personal-workspace")
             competency_trainer = create_checkout(root, "competency-trainer")
+            frontend = create_frontend_checkout(root)
             trust_marker = root / "trusted"
             security_log = root / "security.log"
             make_executable(
@@ -282,6 +306,7 @@ class DevOrchestrationTest(unittest.TestCase):
                     "ALITTLEMORE_DEV_STATE_DIR": str(state_dir),
                     "PERSONAL_WORKSPACE_DIR": str(personal_workspace),
                     "COMPETENCY_TRAINER_DIR": str(competency_trainer),
+                    "FRONTEND_DIR": str(frontend),
                     "FAKE_SECURITY_LOG": str(security_log),
                     "FAKE_TRUST_MARKER": str(trust_marker),
                 }
@@ -322,6 +347,7 @@ class DevOrchestrationTest(unittest.TestCase):
             curl_log = root / "curl.log"
             personal_workspace = create_checkout(root, "personal-workspace")
             competency_trainer = create_checkout(root, "competency-trainer")
+            frontend = create_frontend_checkout(root)
 
             make_executable(
                 binary_dir / "docker",
@@ -344,6 +370,7 @@ class DevOrchestrationTest(unittest.TestCase):
                     "ALITTLEMORE_DEV_STATE_DIR": str(state_dir),
                     "PERSONAL_WORKSPACE_DIR": str(personal_workspace),
                     "COMPETENCY_TRAINER_DIR": str(competency_trainer),
+                    "FRONTEND_DIR": str(frontend),
                     "FAKE_DOCKER_LOG": str(docker_log),
                     "FAKE_CURL_LOG": str(curl_log),
                 }
@@ -368,10 +395,12 @@ class DevOrchestrationTest(unittest.TestCase):
             self.assertIn("--project-name alittlemore-dev", docker_calls)
             self.assertIn("--pull never", docker_calls)
             self.assertIn("--pull missing --remove-orphans", docker_calls)
+            self.assertIn("frontend-blue", docker_calls)
 
             curl_calls = curl_log.read_text(encoding="utf-8")
             for url in (
                 "https://alittlemore.localhost/healthz",
+                "https://alittlemore.localhost/ru/how-this-site-is-built",
                 "https://alittlemore.localhost/api/personal-workspace/healthcheck",
                 "https://alittlemore.localhost/api/competency/healthcheck",
                 "https://s3.localhost/minio/health/live",

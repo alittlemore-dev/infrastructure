@@ -26,6 +26,11 @@ upstream competency_backend {
     server ${COMPETENCY_ACTIVE_BACKEND}:8080 resolve;
 }
 
+upstream frontend {
+    zone frontend_zone 64k;
+    server ${FRONTEND_ACTIVE}:4000 resolve;
+}
+
 upstream minio_api {
     zone minio_api_zone 64k;
     server minio:9000 resolve;
@@ -229,11 +234,8 @@ server {
         proxy_pass http://competency_backend/robots.txt;
     }
 
-    # The unified SPA image does not exist yet. Keep the edge deployable and
-    # reserve every non-API route for that single frontend when it is added.
     location / {
-        add_header Retry-After "60" always;
-        return 503;
+        proxy_pass http://frontend;
     }
 }
 

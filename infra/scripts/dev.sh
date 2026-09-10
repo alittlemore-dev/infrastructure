@@ -6,6 +6,7 @@ repo_dir="$(cd -- "${script_dir}/../.." && pwd)"
 state_dir="${ALITTLEMORE_DEV_STATE_DIR:-${repo_dir}/.dev-state}"
 personal_workspace_dir="${PERSONAL_WORKSPACE_DIR:-${repo_dir}/../personal-workspace}"
 competency_trainer_dir="${COMPETENCY_TRAINER_DIR:-${repo_dir}/../competency-trainer}"
+frontend_dir="${FRONTEND_DIR:-${repo_dir}/../frontend}"
 platform_environment="${repo_dir}/config/platform/development.env"
 state_environment="${state_dir}/compose.env"
 owner_password_file="${state_dir}/owner-password"
@@ -92,6 +93,7 @@ smoke_local_edge() {
     local attempt
     local -a checks=(
         "alittlemore.localhost|/healthz"
+        "alittlemore.localhost|/ru/how-this-site-is-built"
         "alittlemore.localhost|/api/personal-workspace/healthcheck"
         "alittlemore.localhost|/api/competency/healthcheck"
         "s3.localhost|/minio/health/live"
@@ -135,13 +137,15 @@ python3 "${script_dir}/prepare_dev_state.py" \
     --repo-dir "$repo_dir" \
     --state-dir "$state_dir" \
     --personal-workspace-dir "$personal_workspace_dir" \
-    --competency-trainer-dir "$competency_trainer_dir"
+    --competency-trainer-dir "$competency_trainer_dir" \
+    --frontend-dir "$frontend_dir"
 bash "${script_dir}/dev_tls.sh" verify
 
 compose config --quiet
 compose build \
     personal-workspace-backend-blue \
     competency-backend-blue \
+    frontend-blue \
     minio \
     nginx
 prepare_owner_password_hash
@@ -164,6 +168,7 @@ compose_up_wait never \
     competency-backend-blue \
     competency-taskiq-worker-blue \
     competency-taskiq-scheduler-blue \
+    frontend-blue \
     nginx
 smoke_local_edge
 

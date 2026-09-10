@@ -62,6 +62,7 @@ smoke_edge_applications() {
     local attempt
     local -a checks=(
         "${APP_DOMAIN}|/healthz"
+        "${APP_DOMAIN}|/ru/how-this-site-is-built"
         "${APP_DOMAIN}|/api/personal-workspace/healthcheck"
         "${APP_DOMAIN}|/api/competency/healthcheck"
     )

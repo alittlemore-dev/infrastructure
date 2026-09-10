@@ -75,6 +75,20 @@ services:
     container_name: alittlemore_dev_competency_taskiq_scheduler_green
     profiles: [production-only]
 
+  frontend-blue:
+    image: alittlemore-dev/frontend:local
+    pull_policy: never
+    build:
+      context: ${FRONTEND_BUILD_CONTEXT:?Frontend checkout is required}
+      dockerfile: Dockerfile
+    container_name: alittlemore_dev_frontend_blue
+
+  frontend-green:
+    image: alittlemore-dev/frontend:local
+    pull_policy: never
+    container_name: alittlemore_dev_frontend_green
+    profiles: [production-only]
+
   personal-workspace-postgres:
     container_name: alittlemore_dev_personal_workspace_postgres
 
