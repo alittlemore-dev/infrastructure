@@ -25,11 +25,11 @@ the shared certificate and start the stack:
 
 ```bash
 make certbot-issue
-make run
+make deploy
 ```
 
-Later deployments and configuration changes use the same `make run` command. To stop containers
-without deleting named volumes:
+Later deployments and configuration changes use the same `make deploy` command. `make run` remains
+as a compatibility alias. To stop containers without deleting named volumes:
 
 ```bash
 make stop
@@ -37,20 +37,27 @@ make stop
 
 ## Checks
 
-Run the complete local quality gate:
+Check system prerequisites, then run the complete local quality gate:
 
 ```bash
+make doctor
 make quality
 ```
+
+`make quality` finds SOPS 3.13.3 and age-keygen 1.3.2 on `PATH` or installs checksum-verified
+binaries in an ignored local cache. Callers do not pass binary paths. The command runs the same
+complete gate as CI, including the real SOPS/age round trip.
 
 The application and infrastructure image scan is separate because it requires registry access:
 
 ```bash
-make security-trivy-images
+make security-images
 ```
+
+`make status` reports the active slot/release and project containers without changing state. Run
+`make` or `make help` for the full target list.
 
 ## Documentation
 
 - [Production deployment and operations](../docs/production-deploy.md)
 - [Encrypted secrets layout](../secrets/README.md)
-

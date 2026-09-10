@@ -8,16 +8,20 @@ cd "$repo_dir"
 while IFS= read -r shell_file; do
     bash -n "$shell_file"
 done < <(find infra/scripts -type f -name '*.sh' -print | sort)
-python3 -m json.tool infra/minio/policies/personal-workspace.json >/dev/null
-python3 -m json.tool infra/minio/policies/competency-trainer.json >/dev/null
-python3 -m json.tool infra/minio/policies/databasus.json >/dev/null
+while IFS= read -r json_file; do
+    python3 -m json.tool "$json_file" >/dev/null
+done < <(
+    find . -type f -name '*.json' \
+        ! -path './.git/*' \
+        ! -path './.cache/*' \
+        -print \
+        | sort
+)
 
 python3 infra/scripts/render_runtime_config.py \
     --manifest infra/deploy/runtime-config.manifest.json \
     --repo-dir . \
     --validate-only
-python3 -m json.tool infra/deploy/runtime-secrets.manifest.json >/dev/null
-python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 runtime_environment_file="$(mktemp)"
 trap 'rm -f "$runtime_environment_file"' EXIT
@@ -45,3 +49,5 @@ export COMPOSE_DISABLE_ENV_FILE=1
 unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES
 
 docker compose --env-file /dev/null config --quiet
+docker compose --env-file /dev/null config --format json \
+    | python3 infra/scripts/list_compose_build_images.py >/dev/null

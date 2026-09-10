@@ -17,10 +17,15 @@ printf '%s\n' "$SSH_PRIVATE_KEY" >"$HOME/.ssh/alittlemore-infra"
 timeout 30s ssh-keyscan "$REMOTE_HOST" >"$HOME/.ssh/known_hosts.candidate"
 : >"$HOME/.ssh/known_hosts"
 while IFS= read -r host_key; do
+    case "$host_key" in
+        "" | \#*) continue ;;
+    esac
     printf '%s\n' "$host_key" >"$HOME/.ssh/known_host.line"
-    presented_fingerprint="$(
-        ssh-keygen -lf "$HOME/.ssh/known_host.line" -E sha256 | awk '{print $2}'
-    )"
+    if ! presented_fingerprint="$(
+        ssh-keygen -lf "$HOME/.ssh/known_host.line" -E sha256 2>/dev/null | awk '{print $2}'
+    )"; then
+        continue
+    fi
     if [ "$presented_fingerprint" = "$SSH_HOST_KEY_FINGERPRINT" ]; then
         printf '%s\n' "$host_key" >>"$HOME/.ssh/known_hosts"
     fi

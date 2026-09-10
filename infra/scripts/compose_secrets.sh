@@ -1,27 +1,41 @@
 #!/usr/bin/env bash
 
-readonly COMPOSE_SECRET_FILE_VARIABLES=(
-    COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE
-    COMPOSE_MINIO_ROOT_SECRET_KEY_FILE
-    COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE
-    COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE
-    COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE
-    COMPOSE_PERSONAL_WORKSPACE_DB_PASSWORD_FILE
-    COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE
-    COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE
-    COMPOSE_PERSONAL_WORKSPACE_OWNER_PASSWORD_HASH_FILE
-    COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE
-    COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE
-    COMPOSE_COMPETENCY_AUTH_PRIVATE_KEY_FILE
-    COMPOSE_COMPETENCY_DB_PASSWORD_FILE
-    COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE
-    COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE
-    COMPOSE_COMPETENCY_OWNER_INIT_PASSWORD_FILE
-    COMPOSE_COMPETENCY_SENTRY_DSN_FILE
-    COMPOSE_COMPETENCY_AGENT_ISSUING_CERTIFICATE_FILE
-    COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE
-    COMPOSE_COMPETENCY_AGENT_CERTIFICATE_CHAIN_FILE
-)
+COMPOSE_SECRET_FILE_VARIABLES=()
+
+load_compose_secret_file_variables() {
+    if [ -z "${repo_dir:-}" ]; then
+        echo "repo_dir must be set before loading Compose secret variables." >&2
+        return 1
+    fi
+    local variables_output
+    local variable_name
+    local existing_name
+
+    if ! variables_output="$(
+        python3 "${repo_dir}/infra/scripts/list_compose_secret_variables.py" \
+            "${repo_dir}/infra/deploy/runtime-secrets.manifest.json"
+    )"; then
+        return 1
+    fi
+    COMPOSE_SECRET_FILE_VARIABLES=()
+    while IFS= read -r variable_name; do
+        if [[ ! "$variable_name" =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+            echo "Manifest contains an invalid Compose secret variable: ${variable_name}." >&2
+            return 1
+        fi
+        for existing_name in "${COMPOSE_SECRET_FILE_VARIABLES[@]}"; do
+            if [ "$existing_name" = "$variable_name" ]; then
+                echo "Manifest repeats Compose secret variable: ${variable_name}." >&2
+                return 1
+            fi
+        done
+        COMPOSE_SECRET_FILE_VARIABLES+=("$variable_name")
+    done <<<"$variables_output"
+    if [ "${#COMPOSE_SECRET_FILE_VARIABLES[@]}" -eq 0 ]; then
+        echo "Secret manifest does not declare Compose secret variables." >&2
+        return 1
+    fi
+}
 
 fail_invalid_secret() {
     local secret_name="$1"
@@ -286,6 +300,8 @@ prepare_compose_secret_files() {
     local candidate_path
     local variable_name
     local cleanup_status
+
+    load_compose_secret_file_variables || exit 1
 
     if [[ ! "$slot_name" =~ ^(blue|green|maintenance|scan)$ ]]; then
         echo "Unsupported Compose secret slot: ${slot_name}." >&2

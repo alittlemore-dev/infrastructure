@@ -27,10 +27,11 @@
 
 ```bash
 make certbot-issue
-make run
+make deploy
 ```
 
-Для последующих deployment и изменений конфигурации используется та же команда `make run`.
+Для последующих deployment и изменений конфигурации используется та же команда `make deploy`.
+`make run` сохранён как совместимый alias.
 Чтобы остановить контейнеры без удаления named volumes:
 
 ```bash
@@ -39,21 +40,28 @@ make stop
 
 ## Проверки
 
-Запустите полный локальный quality gate:
+Проверьте системные зависимости, затем запустите полный локальный quality gate:
 
 ```bash
+make doctor
 make quality
 ```
+
+`make quality` сам находит SOPS 3.13.3 и age-keygen 1.3.2 в `PATH` либо устанавливает проверенные
+по checksum бинарники в игнорируемый локальный cache. Передавать пути к ним вручную не требуется.
+Эта команда запускает тот же полный набор проверок, что и CI, включая реальный SOPS/age round trip.
 
 Сканирование application и infrastructure images запускается отдельно, поскольку требует доступа
 к registry:
 
 ```bash
-make security-trivy-images
+make security-images
 ```
+
+`make status` без изменений состояния показывает активный slot/release и контейнеры проекта.
+Полный список целей доступен через `make` или `make help`.
 
 ## Документация
 
 - [Production deployment и эксплуатация](../docs/production-deploy.md)
 - [Структура зашифрованных секретов](../secrets/README.md)
-

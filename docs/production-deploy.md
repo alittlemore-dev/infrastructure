@@ -84,8 +84,9 @@ The `current` and `previous` links are workflow-managed. Each release contains a
 `.alittlemore-runtime-root` marker, so lifecycle scripts always use the stable root's shared lock,
 slot/release commit marker, and materialized secrets. The release-local `infra/nginx/certs` path is
 a symlink to the stable `certificates/` directory; certificate rotations therefore survive payload
-changes. A manual `make run` remains supported; outside the deployment workflow it records only the
-blue/green slot because `current` already identifies the operator-selected payload.
+changes. Operators should use `make deploy` for a manual rollout; `make run` remains a compatibility
+alias. Outside the deployment workflow it records only the blue/green slot because `current`
+already identifies the operator-selected payload.
 
 ## Runtime images
 
@@ -283,17 +284,15 @@ editor; SOPS rewrites the tracked document in encrypted form. Do not put the new
 `sops set` command argument, a shell variable, or a command substitution because it can be retained
 in shell history or exposed through the process list.
 
-Verify the updated document and the repository contract before committing it:
+Verify every manifest document and the repository contract before committing the change:
 
 ```bash
-SOPS_AGE_KEY_FILE=/absolute/path/to/recovery-age-key.txt \
-  sops decrypt secrets/personal-workspace/production.sops.yaml >/dev/null
-sops filestatus secrets/personal-workspace/production.sops.yaml
-make check
+make secrets-verify SOPS_AGE_KEY_FILE=/absolute/path/to/recovery-age-key.txt
+make validate
 ```
 
-`sops filestatus` must report `{"encrypted":true}`. Commit only the encrypted document and any
-intentional contract changes.
+`make secrets-verify` checks SOPS metadata and decryptability without printing plaintext. Commit
+only encrypted documents and intentional contract changes.
 
 ### Adding a new secret
 
@@ -338,7 +337,7 @@ secret requires all of the following changes:
    loads the file into the native `API_TOKEN` setting. Do not copy the value into Compose
    `environment`.
 6. Add or update manifest, Compose exposure, and application configuration tests, then run the
-   decrypt, `filestatus`, and `make check` commands above.
+   `make secrets-verify` and `make validate` commands above.
 
 The runtime materializer rejects missing and unexpected keys. Failed decryption, schema, MinIO, or
 PKI validation does not replace the active slot's secret generation.
@@ -386,9 +385,9 @@ When an AI agent assists with production secrets, it must follow this protocol:
    contract, tests, and documentation as one change. Do not mount it into unrelated services.
 10. Do not perform stateful credential rotation by merely editing SOPS. Stop and describe the
     coordinated database, MinIO, authentication, PKI, or external-service procedure required.
-11. Validate with recovery-key decryption to `/dev/null`, `sops filestatus`, and `make check`. For
-    sensitive comparisons, keep plaintext in memory or an owner-only temporary directory and
-    remove the temporary material after the check.
+11. Validate with `make secrets-verify` and `make validate`. For sensitive comparisons, keep
+    plaintext in memory or an owner-only temporary directory and remove the temporary material
+    after the check.
 12. Scan tracked and untracked repository files for accidental plaintext matches without printing
     the matched values. Confirm that only encrypted documents contain the change.
 13. Never commit plaintext dotenv files, decrypted documents, materialized runtime secret files,
@@ -528,22 +527,26 @@ and issuing trees, and overwriting existing PKI files.
 ## Host requirements
 
 The server needs Linux/GNU coreutils (`readlink -f`, `stat -c`, and `mv -T`), Docker Engine with
-Docker Compose v2.24.0 or newer, SOPS, `make`, Python 3, `curl`, OpenSSL, rsync, `flock` (normally
+Docker Compose v2.24.0 or newer, `make`, Python 3, `curl`, OpenSSL, rsync, `flock` (normally
 from util-linux), SSH access, public DNS for all certificate names, and registry credentials when
 the application images are private. Docker should be enabled at boot so the configured restart
-policies take effect after a host reboot. The repository includes
-`infra/scripts/install_sops.sh` for installing the pinned Linux amd64 binary at an explicitly
-provided destination.
+policies take effect after a host reboot. `make doctor-runtime` checks these non-secret host
+requirements without changing the host. Quality commands resolve exact SOPS and age-keygen
+versions from `PATH` or install checksum-pinned Linux/Darwin amd64/arm64 binaries into the ignored
+repository cache. The compatibility installer scripts remain available when an explicit
+destination is required.
 
-`make run`, every TLS mutation, and `make stop` share an exclusive host-side runtime lock. This
-prevents an SSH timeout or a manually started command from racing a later deployment. `make stop`
+`make deploy` (`make run` is its compatibility alias), every TLS mutation, and `make stop` share an
+exclusive host-side runtime lock. This prevents an SSH timeout or a manually started command from
+racing a later deployment. `make stop`
 uses a separate minimal Compose model, so it remains available even if tracked config,
 SOPS documents, or PKI are missing or invalid. Normal commands require a non-symlinked,
 deploy-user-owned age identity that is inaccessible to group and other users. On the server, always
 invoke operational targets through the active payload, for example:
 
 ```bash
-make -C /srv/alittlemore-dev/current run
+make -C /srv/alittlemore-dev/current deploy
+make -C /srv/alittlemore-dev/current status
 make -C /srv/alittlemore-dev/current stop
 ```
 
@@ -553,17 +556,24 @@ Docker can recover the edge without a Docker socket mount or privileged watchdog
 
 ## Quality gates
 
-The CI workflow installs checksum-pinned SOPS and age-keygen, exercises a real encrypt/decrypt
-round trip, and runs these independently of deployment:
+The same complete quality gate runs locally and in CI:
 
 ```bash
-make tests
-make check
-make lint-dockerfiles
-make security-trivy-config
+make doctor
+make quality
 ```
 
-Run `make security-trivy-images` separately with the tracked config, decryptable SOPS documents,
-and registry login. It pulls the four application images, builds the pinned nginx, MinIO, and
-certificate-sync wrappers, and scans all twelve unique application and infrastructure runtime
-images for fixed high/critical OS and library vulnerabilities.
+`make quality` automatically reuses exact SOPS 3.13.3 and age-keygen 1.3.2 binaries from `PATH` or
+installs checksum-verified platform binaries into `.cache/quality-tools`; callers and CI do not
+pass binary paths. It runs the full test suite once, validates shell/JSON/Compose configuration,
+lints every tracked infrastructure shell script and Dockerfile, and scans configuration with
+Trivy. Required integration checks fail instead of silently skipping.
+
+Run `make security-images` separately with the tracked config, decryptable SOPS documents, and
+registry login. It builds local wrapper images, discovers the unique effective Compose image set,
+pulls only registry-backed images, and scans them for fixed high/critical OS and library
+vulnerabilities. `make security-trivy-images` remains a compatibility alias.
+
+Renovate tracks version and digest pins in the repository. SOPS and age release upgrades still
+require reviewing and updating the per-platform checksums before the quality gate will accept the
+new binaries.

@@ -1,52 +1,97 @@
-TRIVY_IMAGE := docker.io/aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+.DEFAULT_GOAL := help
 
-.PHONY: run
-run:
+# renovate: datasource=docker depName=aquasec/trivy
+TRIVY_IMAGE := docker.io/aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+QUALITY_TOOLS_DIR ?= $(CURDIR)/.cache/quality-tools
+
+.PHONY: help
+help:
+	@printf '%-30s %s\n' 'Available targets:' ''
+	@printf '%-30s %s\n' '  quality' 'Run the complete local/CI quality gate.'
+	@printf '%-30s %s\n' '  tools' 'Resolve or install pinned quality tools.'
+	@printf '%-30s %s\n' '  tests' 'Run all tests, including the SOPS/age round trip.'
+	@printf '%-30s %s\n' '  validate' 'Validate scripts, JSON, manifests, and Compose config.'
+	@printf '%-30s %s\n' '  lint' 'Lint every Dockerfile and shell script.'
+	@printf '%-30s %s\n' '  security-config' 'Scan repository configuration with Trivy.'
+	@printf '%-30s %s\n' '  security-images' 'Build, pull, and scan all runtime images.'
+	@printf '%-30s %s\n' '  doctor' 'Check local quality prerequisites.'
+	@printf '%-30s %s\n' '  doctor-runtime' 'Check production-host prerequisites.'
+	@printf '%-30s %s\n' '  status' 'Show the active deployment and project containers.'
+	@printf '%-30s %s\n' '  secrets-verify' 'Verify every tracked SOPS document without plaintext output.'
+	@printf '%-30s %s\n' '  deploy' 'Run the production-oriented blue/green rollout.'
+	@printf '%-30s %s\n' '  stop' 'Stop the stack without deleting named volumes.'
+	@printf '%-30s %s\n' '  certbot-{issue,renew,sync}' 'Manage the shared TLS certificate.'
+	@printf '%-30s %s\n' '  agent-ca-init' 'Create offline root and issuing Agent CAs.'
+	@printf '%-30s %s\n' '  agent-client-csr' 'Create an Agent client key and CSR.'
+
+.PHONY: deploy run
+deploy:
 	bash infra/scripts/run.sh
+run: deploy
 
 .PHONY: stop
 stop:
 	bash infra/scripts/stop.sh
 
-.PHONY: certbot-issue
+.PHONY: certbot-issue certbot-renew certbot-sync
 certbot-issue:
 	bash infra/scripts/tls.sh issue
-
-.PHONY: certbot-renew
 certbot-renew:
 	bash infra/scripts/tls.sh renew
-
-.PHONY: certbot-sync
 certbot-sync:
 	bash infra/scripts/tls.sh sync
 
-.PHONY: agent-ca-init
+.PHONY: agent-ca-init agent-client-csr
 agent-ca-init:
 	bash infra/scripts/agent_ca.sh init "$(OFFLINE_ROOT_DIR)" "$(ISSUING_DIR)"
-
-.PHONY: agent-client-csr
 agent-client-csr:
 	bash infra/scripts/agent_ca.sh client-csr "$(AGENT_ID)" "$(CLIENT_OUTPUT_DIR)"
 
+.PHONY: tools
+tools:
+	python3 infra/scripts/quality_tools.py ensure --cache-dir "$(QUALITY_TOOLS_DIR)"
+
 .PHONY: tests
 tests:
-	python3 -m unittest discover -s tests -p 'test_*.py' -v
+	python3 infra/scripts/run_tests.py --cache-dir "$(QUALITY_TOOLS_DIR)"
 
-.PHONY: check
-check:
+.PHONY: validate check
+validate:
 	bash infra/scripts/check.sh
+check: validate
 
-.PHONY: lint-dockerfiles
-lint-dockerfiles:
+.PHONY: lint lint-dockerfiles
+lint:
 	bash infra/scripts/docker_lint.sh
+lint-dockerfiles: lint
 
-.PHONY: security-trivy-config
-security-trivy-config:
+.PHONY: security-config security-trivy-config
+security-config:
 	bash infra/scripts/trivy_scan.sh config "$(TRIVY_IMAGE)"
+security-trivy-config: security-config
 
-.PHONY: security-trivy-images
-security-trivy-images:
+.PHONY: security-images security-trivy-images
+security-images:
 	bash infra/scripts/trivy_scan.sh images "$(TRIVY_IMAGE)"
+security-trivy-images: security-images
+
+.PHONY: doctor doctor-runtime
+doctor:
+	bash infra/scripts/doctor.sh quality
+doctor-runtime:
+	bash infra/scripts/doctor.sh runtime
+
+.PHONY: status
+status:
+	bash infra/scripts/status.sh
+
+.PHONY: secrets-verify
+secrets-verify:
+	python3 infra/scripts/verify_sops_documents.py \
+		--manifest infra/deploy/runtime-secrets.manifest.json \
+		--repo-dir . \
+		--cache-dir "$(QUALITY_TOOLS_DIR)" \
+		--age-key-file "$(SOPS_AGE_KEY_FILE)"
 
 .PHONY: quality
-quality: tests check lint-dockerfiles security-trivy-config
+quality: tests validate lint security-config

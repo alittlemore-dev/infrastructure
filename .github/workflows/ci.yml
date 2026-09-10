@@ -12,27 +12,9 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    env:
-      SOPS_INTEGRATION_BINARY: ${{ runner.temp }}/sops
-      AGE_KEYGEN_INTEGRATION_BINARY: ${{ runner.temp }}/age-keygen
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Install pinned SOPS
-        run: bash infra/scripts/install_sops.sh "$SOPS_INTEGRATION_BINARY"
-
-      - name: Install pinned age-keygen
-        run: bash infra/scripts/install_age_keygen.sh "$AGE_KEYGEN_INTEGRATION_BINARY"
-
-      - name: Configuration tests
-        run: make tests
-
-      - name: Static configuration checks
-        run: make check
-
-      - name: Dockerfile and shell lint
-        run: make lint-dockerfiles
-
-      - name: Trivy configuration scan
-        run: make security-trivy-config
+      - name: Quality gate
+        run: make quality

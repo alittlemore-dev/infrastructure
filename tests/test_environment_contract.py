@@ -344,10 +344,25 @@ class EnvironmentContractTest(unittest.TestCase):
     def test_ci_executes_the_real_sops_round_trip(self) -> None:
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
-        self.assertIn("bash infra/scripts/install_sops.sh", workflow)
-        self.assertIn("bash infra/scripts/install_age_keygen.sh", workflow)
-        self.assertIn("SOPS_INTEGRATION_BINARY:", workflow)
-        self.assertIn("AGE_KEYGEN_INTEGRATION_BINARY:", workflow)
+        self.assertEqual(1, workflow.count("run: make quality"))
+        for duplicated_command in (
+            "bash infra/scripts/install_sops.sh",
+            "bash infra/scripts/install_age_keygen.sh",
+            "run: make tests",
+            "run: make check",
+            "run: make lint-dockerfiles",
+            "run: make security-trivy-config",
+        ):
+            self.assertNotIn(duplicated_command, workflow)
+
+    def test_ci_does_not_require_callers_to_configure_tool_paths(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+        self.assertNotIn("${{ runner.temp }}", workflow)
+        self.assertNotIn("configure_ci_environment", workflow)
+        self.assertNotIn("SOPS_INTEGRATION_BINARY", workflow)
+        self.assertNotIn("AGE_KEYGEN_INTEGRATION_BINARY", workflow)
+        self.assertEqual(workflow.count("make quality"), 1)
 
     def test_application_runtime_has_a_read_only_root_filesystem(self) -> None:
         compose = COMPOSE.read_text(encoding="utf-8")

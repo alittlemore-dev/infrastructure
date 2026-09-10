@@ -1,6 +1,7 @@
 .env
 .deploy-state/
 .deploy-payload/
+.cache/
 .alittlemore-runtime-root
 infra/nginx/certs/
 __pycache__/

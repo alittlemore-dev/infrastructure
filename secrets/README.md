@@ -14,6 +14,12 @@ Create the initial files locally from owner-only, service-scoped dotenv sources 
 commit the encrypted documents together with `.sops.yaml`. Plaintext source files stay outside the
 repository and are never sourced as shell code.
 
+After bootstrap or an edit, verify every manifest document without printing plaintext:
+
+```bash
+make secrets-verify SOPS_AGE_KEY_FILE=/absolute/path/to/recovery-age-key.txt
+```
+
 Keys inside each application document use that application's native names, such as
 `APP_SECRET_KEY`, `DB_PASSWORD`, and `MINIO_ACCESS_KEY`. Directory scope distinguishes identical
 names. `infra/deploy/runtime-secrets.manifest.json` contains only these native names and their
