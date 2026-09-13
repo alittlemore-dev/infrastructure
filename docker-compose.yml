@@ -458,7 +458,7 @@ services:
     healthcheck: *frontend-healthcheck
 
   personal-workspace-postgres:
-    image: postgres:18.4-alpine
+    image: postgres:18.6-alpine
     container_name: personal_workspace_postgres
     user: "70:70"
     restart: unless-stopped
@@ -480,7 +480,7 @@ services:
       retries: 12
 
   personal-workspace-valkey:
-    image: valkey/valkey:9.0.1
+    image: valkey/valkey:9.1.2
     container_name: personal_workspace_valkey
     user: "999:999"
     restart: unless-stopped
@@ -566,7 +566,7 @@ services:
         condition: service_healthy
 
   competency-postgres:
-    image: postgres:18.4-alpine
+    image: postgres:18.6-alpine
     container_name: competency_trainer_postgres
     user: "70:70"
     restart: unless-stopped
@@ -588,7 +588,7 @@ services:
       retries: 12
 
   competency-valkey:
-    image: valkey/valkey:9.0.1
+    image: valkey/valkey:9.1.2
     container_name: competency_trainer_valkey
     user: "999:999"
     restart: unless-stopped
@@ -603,7 +603,7 @@ services:
       retries: 12
 
   auth-api-postgres:
-    image: postgres:18.4-alpine
+    image: postgres:18.6-alpine
     container_name: auth_api_postgres
     user: "70:70"
     restart: unless-stopped
@@ -626,7 +626,7 @@ services:
 
   auth-api-valkey:
     command: ["valkey-server", "--appendonly", "yes"]
-    image: valkey/valkey:9.0.1
+    image: valkey/valkey:9.1.2
     container_name: auth_api_valkey
     user: "999:999"
     restart: unless-stopped
@@ -641,7 +641,7 @@ services:
       retries: 12
 
   databasus:
-    image: databasus/databasus:v3.47.1
+    image: databasus/databasus:v3.57.0
     container_name: alittlemore_infra_databasus
     restart: unless-stopped
     volumes:
@@ -716,7 +716,7 @@ services:
       retries: 12
 
   certbot:
-    image: certbot/certbot:v5.2.2
+    image: certbot/certbot:v5.8.0
     container_name: alittlemore_infra_certbot
     profiles:
       - letsencrypt
