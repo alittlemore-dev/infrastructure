@@ -251,7 +251,7 @@ class QualityToolsTest(unittest.TestCase):
             )
 
         self.assertEqual(1, result.returncode)
-        self.assertIn("missing required commands: bash, make, openssl, ssh-keygen", result.stderr)
+        self.assertIn("missing required commands: bash, make, ssh-keygen", result.stderr)
 
 
 if __name__ == "__main__":

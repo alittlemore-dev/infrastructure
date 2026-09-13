@@ -35,7 +35,7 @@ and the next successful activation removes every other validated `incoming-<run>
 directory.
 
 Deploy runs are serialized and never cancel an in-progress stateful rollout. The deploy workflow
-does not clone or synchronize the application repositories. It expects the three application
+does not clone or synchronize the application repositories. It expects the four application
 images described below to have been published before deployment. A deploy therefore uses whatever
 immutable image digests their `latest` tags resolve to when `make run` executes. Each reference is
 pulled once, and all services in that run start from that locally resolved tag without another
@@ -96,10 +96,11 @@ not end in `/`. The application repositories build and publish these images:
 
 - `${IMAGE_REGISTRY}/personal-workspace-backend:latest`
 - `${IMAGE_REGISTRY}/competency-trainer-backend:latest`
+- `${IMAGE_REGISTRY}/auth-api:latest`
 - `${IMAGE_REGISTRY}/frontend:latest`
 
 Every application service declares `pull_policy: always`. `make run` resolves and pulls each of
-the three references once, then starts every process with `--pull never`, so one deployment cannot
+the four references once, then starts every process with `--pull never`, so one deployment cannot
 mix different digests if a moving `latest` tag changes midway.
 
 The shared frontend repository currently contains the migrated Competency Trainer Angular SSR/CSR
@@ -114,6 +115,7 @@ and translates the namespaced public paths before forwarding them:
 
 - `/api/personal-workspace/<path>` becomes `/api/<path>` on Personal Workspace;
 - `/api/competency/<path>` becomes `/api/<path>` on Competency Trainer;
+- `/api/auth/<path>` is forwarded unchanged to Auth API (including login, account, admin, docs and health checks);
 - `/healthz` checks the edge itself;
 - unknown `/api/*` paths return `404` and are never sent to the frontend.
 
@@ -130,16 +132,17 @@ upstream version is declared only once, in the manifest that Dependabot can upda
 
 ## Configuration layout
 
-Open production settings live in three tracked files:
+Open production settings live in four tracked files:
 
 ```text
 config/
 ├── platform/production.env
 ├── personal-workspace/production.env
-└── competency-trainer/production.env
+├── competency-trainer/production.env
+└── auth-api/production.env
 ```
 
-The two application files deliberately use their applications' native names. For example, both
+The application files deliberately use their applications' native names. For example, both
 can declare `APP_DEBUG`, `DB_NAME`, and `DB_USER`; the file path is the namespace. Compose loads
 each file only into the corresponding backend, initializer, worker, and scheduler containers.
 `infra/deploy/runtime-config.manifest.json` defines the exact allowed keys and the few internal
@@ -189,7 +192,8 @@ Tracked secrets are split by scope and encrypted with SOPS using age recipients:
 secrets/
 ├── platform/production.sops.yaml
 ├── personal-workspace/production.sops.yaml
-└── competency-trainer/production.sops.yaml
+├── competency-trainer/production.sops.yaml
+└── auth-api/production.sops.yaml
 ```
 
 Like open configuration, each application document uses native names such as `APP_SECRET_KEY`,
@@ -197,7 +201,7 @@ Like open configuration, each application document uses native names such as `AP
 `infra/deploy/runtime-secrets.manifest.json` uses the same native names. No prefixed migration
 aliases are passed to applications or retained in the manifest.
 
-At startup, `infra/scripts/compose_secrets.sh` decrypts the three documents in memory into an
+At startup, `infra/scripts/compose_secrets.sh` decrypts the four documents in memory into an
 owner-only immutable generation, validates their exact keys, normalizes explicitly marked PEM
 values, validates the application PKI, and checks all eight MinIO credential fingerprints. Only
 then does it atomically switch the symlink for the inactive blue/green slot. The active slot keeps
@@ -214,6 +218,10 @@ identities are mounted into the bootstrap and their respective backend processes
 Databasus identity is created by the bootstrap; its credentials are entered into Databasus when
 the S3 destination is configured in the VPN-only UI.
 
+Auth API has its own Ed25519 PASETO pair, stored together in its encrypted document and
+validated for algorithm and equality before rollout. Existing applications keep their current
+authentication until a separate migration.
+
 The Competency Trainer PASETO public/private key pair and Agent Access issuing material are parsed
 with OpenSSL before Compose changes the running stack. The PASETO public key must match its private
 key. The issuing certificate must be the first certificate in the two-certificate issuing/root
@@ -228,7 +236,7 @@ sync keeps the current certificate release and at most two older releases.
 
 ### One-time local secret bootstrap
 
-Prepare three owner-only dotenv files outside the repository. Each file is scoped to one SOPS
+Prepare four owner-only dotenv files outside the repository. Each file is scoped to one SOPS
 document, so repeated native names such as `APP_SECRET_KEY` and `DB_PASSWORD` need no prefixes:
 
 1. Install `age` on the production host and on a separate recovery machine.
@@ -249,19 +257,20 @@ document, so repeated native names such as `APP_SECRET_KEY` and `DB_PASSWORD` ne
      production-age-key.txt /etc/alittlemore-infra/sops-age-key.txt
    ```
 
-4. From the infrastructure repository, encrypt the three local sources for both public recipients:
+4. From the infrastructure repository, encrypt the four local sources for both public recipients:
 
    ```bash
    bash infra/scripts/bootstrap_sops_secrets.sh \
      --platform-env /absolute/path/platform.production.env \
      --personal-workspace-env /absolute/path/personal-workspace.production.env \
      --competency-trainer-env /absolute/path/competency-trainer.production.env \
+     --auth-api-env /absolute/path/auth-api.production.env \
      --age-recipient age1-production-recipient \
      --age-recipient age1-recovery-recipient
    ```
 
    The script requires regular owner-only input files, parses them as data without shell sourcing,
-   selects only the native keys declared for each document, and writes `.sops.yaml` plus the three
+   selects only the native keys declared for each document, and writes `.sops.yaml` plus the four
    encrypted documents.
 5. Verify every document with the recovery identity before committing it:
 
@@ -274,7 +283,7 @@ document, so repeated native names such as `APP_SECRET_KEY` and `DB_PASSWORD` ne
      sops decrypt secrets/competency-trainer/production.sops.yaml >/dev/null
    ```
 
-6. Commit `.sops.yaml` and the three encrypted documents. After a successful production deploy,
+6. Commit `.sops.yaml` and the four encrypted documents. After a successful production deploy,
    remove the temporary plaintext bootstrap sources. Retain only the two private age identities in
    their protected locations and the deployment transport values in GitHub.
 
@@ -444,25 +453,25 @@ make -C /srv/alittlemore-dev/current certbot-sync
 
 `.deploy-state/active-slot` stores one global `blue` or `green` value. Deploy workflow runs append
 the validated `release-<run>-<attempt>` ID on the same atomic line so payload recovery can identify
-the runtime commit. Both backends and the shared frontend move together; nginx never mixes runtime
+the runtime commit. All backends and the shared frontend move together; nginx never mixes runtime
 slots. The active containers continue using their original image digests even though their
 references end in `:latest`.
 
 Before the edge switch, `make run` must successfully:
 
 - pull all application images;
-- make both PostgreSQL and Valkey pairs plus the shared MinIO healthy, complete the MinIO bootstrap,
+- make all PostgreSQL and Valkey pairs plus the shared MinIO healthy, complete the MinIO bootstrap,
   and start the shared Databasus container (Databasus has no container health probe);
-- run both backend initializers;
-- make both target backends and the shared target frontend healthy;
-- start both TaskIQ workers and schedulers.
+- run all backend initializers;
+- make all target backends and the shared target frontend healthy;
+- start all TaskIQ workers and schedulers.
 
 The certificate helper stages a new release, parses the key and certificate, checks their match,
 checks expiry and all three hostnames, applies restrictive permissions, and only then atomically
 moves the `current` symlink. Before replacing the edge, `make run` builds a slot-specific nginx
 image and runs its complete render plus `nginx -t` path in an isolated one-off container. Only then
-is nginx force-recreated with the target service names. The four HTTPS smoke checks cover the edge,
-a deterministic SSR route, and both APIs. They use `--resolve ...:127.0.0.1`, so they always
+is nginx force-recreated with the target service names. The five HTTPS smoke checks cover the edge,
+a deterministic SSR route, and all APIs. They use `--resolve ...:127.0.0.1`, so they always
 exercise the just-started local edge rather than an external DNS target.
 
 The state file is updated and previous application containers are stopped only after restart-policy,
@@ -497,7 +506,7 @@ repositories and remove their access to the production GitHub Environment/SSH cr
 cutover; otherwise an accidental legacy workflow dispatch can recreate the old stacks. This
 intentionally starts with fresh unified-project volumes; migration or restoration of legacy data
 is outside this no-backward-compatibility cutover.
-Configure the single Databasus instance with both PostgreSQL sources:
+Configure the single Databasus instance with all PostgreSQL sources:
 
 - Personal Workspace: host `personal-workspace-postgres`, port `5432`, database/user/password from
   `DB_NAME` and `DB_USER` in `config/personal-workspace/production.env`, plus `DB_PASSWORD` in
@@ -505,6 +514,9 @@ Configure the single Databasus instance with both PostgreSQL sources:
 - Competency Trainer: host `competency-postgres`, port `5432`, database/user/password from
   `DB_NAME` and `DB_USER` in `config/competency-trainer/production.env`, plus `DB_PASSWORD` in
   `secrets/competency-trainer/production.sops.yaml`.
+
+- Auth API: host `auth-api-postgres`, port `5432`, database/user from
+  `config/auth-api/production.env` and password from `secrets/auth-api/production.sops.yaml`.
 
 For an S3 backup destination use endpoint `http://minio:9000`, bucket `database-backups`, region
 from `MINIO_REGION`, and the `DATABASUS_MINIO_ACCESS_KEY` / `DATABASUS_MINIO_SECRET_KEY`

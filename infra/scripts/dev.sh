@@ -6,6 +6,7 @@ repo_dir="$(cd -- "${script_dir}/../.." && pwd)"
 state_dir="${ALITTLEMORE_DEV_STATE_DIR:-${repo_dir}/.dev-state}"
 personal_workspace_dir="${PERSONAL_WORKSPACE_DIR:-${repo_dir}/../personal-workspace}"
 competency_trainer_dir="${COMPETENCY_TRAINER_DIR:-${repo_dir}/../competency-trainer}"
+auth_api_dir="${AUTH_API_DIR:-${repo_dir}/../auth-api}"
 frontend_dir="${FRONTEND_DIR:-${repo_dir}/../frontend}"
 platform_environment="${repo_dir}/config/platform/development.env"
 state_environment="${state_dir}/compose.env"
@@ -84,6 +85,7 @@ compose_up_wait() {
 run_initializers() {
     compose run --rm --no-deps --pull never personal-workspace-backend-init
     compose run --rm --no-deps --pull never competency-backend-init
+    compose run --rm --no-deps --pull never auth-api-backend-init
 }
 
 smoke_local_edge() {
@@ -96,6 +98,7 @@ smoke_local_edge() {
         "alittlemore.localhost|/ru/how-this-site-is-built"
         "alittlemore.localhost|/api/personal-workspace/healthcheck"
         "alittlemore.localhost|/api/competency/healthcheck"
+        "alittlemore.localhost|/api/auth/healthcheck"
         "s3.localhost|/minio/health/live"
     )
 
@@ -138,6 +141,7 @@ python3 "${script_dir}/prepare_dev_state.py" \
     --state-dir "$state_dir" \
     --personal-workspace-dir "$personal_workspace_dir" \
     --competency-trainer-dir "$competency_trainer_dir" \
+    --auth-api-dir "$auth_api_dir" \
     --frontend-dir "$frontend_dir"
 bash "${script_dir}/dev_tls.sh" verify
 
@@ -145,6 +149,7 @@ compose config --quiet
 compose build \
     personal-workspace-backend-blue \
     competency-backend-blue \
+    auth-api-backend-blue \
     frontend-blue \
     minio \
     nginx
@@ -156,6 +161,8 @@ compose_up_wait missing \
     personal-workspace-valkey \
     competency-postgres \
     competency-valkey \
+    auth-api-postgres \
+    auth-api-valkey \
     minio \
     databasus
 run_initializers
@@ -168,6 +175,9 @@ compose_up_wait never \
     competency-backend-blue \
     competency-taskiq-worker-blue \
     competency-taskiq-scheduler-blue \
+    auth-api-backend-blue \
+    auth-api-taskiq-worker-blue \
+    auth-api-taskiq-scheduler-blue \
     frontend-blue \
     nginx
 smoke_local_edge
@@ -176,5 +186,6 @@ printf '\nLocal integration stack is ready:\n'
 printf '  Application edge: https://alittlemore.localhost\n'
 printf '  Personal Workspace API: https://alittlemore.localhost/api/personal-workspace/\n'
 printf '  Competency Trainer API: https://alittlemore.localhost/api/competency/\n'
+printf '  Auth API: https://alittlemore.localhost/api/auth/\n'
 printf '  MinIO API: https://s3.localhost\n\n'
 cat "${state_dir}/credentials"

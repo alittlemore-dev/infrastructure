@@ -65,6 +65,7 @@ smoke_edge_applications() {
         "${APP_DOMAIN}|/ru/how-this-site-is-built"
         "${APP_DOMAIN}|/api/personal-workspace/healthcheck"
         "${APP_DOMAIN}|/api/competency/healthcheck"
+        "${APP_DOMAIN}|/api/auth/healthcheck"
     )
 
     for check in "${checks[@]}"; do

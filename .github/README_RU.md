@@ -4,7 +4,8 @@
 
 Единый репозиторий Docker Compose runtime и production deployment для
 [Personal Workspace](https://github.com/alittlemore-dev/personal-workspace) и
-[Competency Trainer](https://github.com/alittlemore-dev/competency-trainer), а также общего
+[Competency Trainer](https://github.com/alittlemore-dev/competency-trainer),
+[Auth API](https://github.com/alittlemore-dev/auth-api) и общего
 [frontend](https://github.com/alittlemore-dev/frontend). Исходный код приложений находится в
 отдельных репозиториях и публикуется как контейнерные образы; этот репозиторий отвечает за
 production-топологию, конфигурацию, секреты, TLS edge, жизненный цикл релизов и единый
@@ -12,9 +13,9 @@ production-топологию, конфигурацию, секреты, TLS edg
 
 ## Возможности
 
-- Единый публичный origin и общий nginx edge для обоих приложений.
+- Единый публичный origin и общий nginx edge для всех приложений.
 - API-маршрутизация с namespaces: `/api/personal-workspace/*` и `/api/competency/*`
-  преобразуются в существующий контракт `/api/*` соответствующего backend.
+  преобразуются в существующий контракт `/api/*` соответствующего backend; Auth API использует `/api/auth/*`.
 - Отдельные PostgreSQL, Valkey, credentials, volumes и приватные сети для каждого приложения.
 - Общие MinIO и Databasus с отдельными identities и ограниченным доступом к buckets.
 - Синхронный blue/green rollout приложений с health checks и автоматическим откатом маршрутизации.
@@ -25,7 +26,7 @@ production-топологию, конфигурацию, секреты, TLS edg
 
 ## Локальная разработка
 
-Расположите `infra`, `frontend`, `personal-workspace` и `competency-trainer` рядом. Один раз добавьте
+Расположите `infra`, `frontend`, `personal-workspace`, `competency-trainer` и `auth-api` рядом. Один раз добавьте
 локальный центр сертификации в доверенные, затем запустите весь стек:
 
 ```bash
@@ -34,7 +35,7 @@ make dev
 ```
 
 Общие edge и frontend доступны по адресу `https://alittlemore.localhost`. API Personal Workspace
-начинаются с `/api/personal-workspace/`, а API Competency Trainer — с `/api/competency/`.
+начинаются с `/api/personal-workspace/`, а API Competency Trainer — с `/api/competency/`; Auth API — с `/api/auth/`.
 Сгенерированные логины хранятся в `.dev-state/credentials`.
 
 ## Production-запуск

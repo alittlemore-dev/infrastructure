@@ -16,7 +16,7 @@ help:
 	@printf '%-30s %s\n' '  doctor-runtime' 'Check production-host prerequisites.'
 	@printf '%-30s %s\n' '  status' 'Show the active deployment and project containers.'
 	@printf '%-30s %s\n' '  dependencies-status' 'Check manually pinned dependencies for upstream updates.'
-	@printf '%-30s %s\n' '  dev' 'Build and start both applications from local sibling checkouts.'
+	@printf '%-30s %s\n' '  dev' 'Build and start applications from local sibling checkouts.'
 	@printf '%-30s %s\n' '  dev-trust' 'Trust the generated local HTTPS certificate authority.'
 	@printf '%-30s %s\n' '  secrets-verify' 'Verify every tracked SOPS document without plaintext output.'
 	@printf '%-30s %s\n' '  deploy' 'Run the production-oriented blue/green rollout.'

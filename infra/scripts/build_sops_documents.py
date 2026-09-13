@@ -157,7 +157,7 @@ def write_public_file(path: Path, content: str) -> None:
 def render_sops_config(recipients: list[str]) -> str:
     lines = [
         "creation_rules:",
-        "  - path_regex: ^secrets/(platform|personal-workspace|competency-trainer)/production\\.sops\\.yaml$",
+        "  - path_regex: ^secrets/(platform|personal-workspace|competency-trainer|auth-api)/production\\.sops\\.yaml$",
         "    age:",
     ]
     lines.extend(f"      - {recipient}" for recipient in recipients)

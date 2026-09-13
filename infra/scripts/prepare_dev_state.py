@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import secrets
@@ -9,6 +10,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+from openssl_tools import OpenSSLResolutionError, resolve_openssl
 
 
 class DevStateError(RuntimeError):
@@ -21,6 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-dir", required=True, type=Path)
     parser.add_argument("--personal-workspace-dir", required=True, type=Path)
     parser.add_argument("--competency-trainer-dir", required=True, type=Path)
+    parser.add_argument("--auth-api-dir", required=True, type=Path)
     parser.add_argument("--frontend-dir", required=True, type=Path)
     return parser.parse_args()
 
@@ -60,19 +64,25 @@ def atomic_write(path: Path, value: str, mode: int = 0o600) -> None:
         raise
 
 
-def stable_file(path: Path, factory, *, allow_empty: bool = False) -> str:
+def stable_file(
+    path: Path,
+    factory,
+    *,
+    allow_empty: bool = False,
+    mode: int = 0o600,
+) -> str:
     if path.is_symlink() or (path.exists() and not path.is_file()):
         raise DevStateError(f"Local development value must be a regular file: {path}")
     if path.exists():
         value = path.read_text(encoding="utf-8")
         if value or allow_empty:
-            path.chmod(0o600)
+            path.chmod(mode)
             return value
         raise DevStateError(f"Local development value is unexpectedly empty: {path}")
     value = factory()
     if not value and not allow_empty:
         raise DevStateError(f"Generated local development value is empty: {path}")
-    atomic_write(path, value)
+    atomic_write(path, value, mode)
     return value
 
 
@@ -80,21 +90,78 @@ def random_token(bytes_count: int = 32) -> str:
     return secrets.token_urlsafe(bytes_count)
 
 
-def run_openssl(*arguments: str) -> None:
+@functools.cache
+def openssl_binary() -> Path:
     try:
-        subprocess.run(
-            ["openssl", *arguments],
+        return resolve_openssl()
+    except OpenSSLResolutionError as exc:
+        raise DevStateError(str(exc)) from exc
+
+
+def execute_openssl(
+    *arguments: str,
+    capture_stdout: bool = False,
+    text: bool = True,
+) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(
+            [str(openssl_binary()), *arguments],
             check=True,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE if capture_stdout else subprocess.DEVNULL,
             stderr=subprocess.PIPE,
-            text=True,
+            text=text,
         )
-    except FileNotFoundError as exc:
-        raise DevStateError("openssl could not be found. Install it before local development.") from exc
     except subprocess.CalledProcessError as exc:
         detail = exc.stderr.strip() or "unknown OpenSSL error"
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
         raise DevStateError(f"Could not generate local development PKI: {detail}") from exc
+
+
+def run_openssl(*arguments: str) -> None:
+    execute_openssl(*arguments)
+
+
+def validate_auth_key_pair(
+    private_key: Path,
+    public_key: Path,
+    *,
+    label: str,
+    algorithm: str,
+) -> None:
+    details = execute_openssl(
+        "pkey", "-in", str(private_key), "-text", "-noout", capture_stdout=True
+    ).stdout.upper()
+    expected_detail = {
+        "EC_P256": "NIST CURVE: P-256",
+        "ED25519": "ED25519",
+    }[algorithm]
+    if expected_detail not in details:
+        display_algorithm = "P-256" if algorithm == "EC_P256" else "Ed25519"
+        raise DevStateError(f"{label} must use {display_algorithm}.")
+    private_public = execute_openssl(
+        "pkey",
+        "-in",
+        str(private_key),
+        "-pubout",
+        "-outform",
+        "DER",
+        capture_stdout=True,
+        text=False,
+    ).stdout
+    declared_public = execute_openssl(
+        "pkey",
+        "-pubin",
+        "-in",
+        str(public_key),
+        "-outform",
+        "DER",
+        capture_stdout=True,
+        text=False,
+    ).stdout
+    if private_public != declared_public:
+        raise DevStateError(f"{label} does not match.")
 
 
 def require_complete_group(paths: tuple[Path, ...], label: str) -> bool:
@@ -112,28 +179,52 @@ def require_complete_group(paths: tuple[Path, ...], label: str) -> bool:
     return False
 
 
-def ensure_auth_key_pair(secret_dir: Path) -> tuple[Path, Path]:
+def ensure_auth_key_pair(
+    secret_dir: Path,
+    *,
+    label: str,
+    algorithm: str,
+    public_key_name: str,
+    mode: int = 0o600,
+) -> tuple[Path, Path]:
     private_key = secret_dir / "auth_private_key"
-    public_key = secret_dir / "auth_public_key.pem"
-    if require_complete_group((private_key, public_key), "Competency Trainer auth key pair"):
-        run_openssl("pkey", "-in", str(private_key), "-noout")
-        run_openssl("pkey", "-pubin", "-in", str(public_key), "-noout")
+    public_key = secret_dir / public_key_name
+    if require_complete_group((private_key, public_key), label):
+        validate_auth_key_pair(
+            private_key,
+            public_key,
+            label=label,
+            algorithm=algorithm,
+        )
+        private_key.chmod(mode)
+        public_key.chmod(mode)
         return private_key, public_key
 
-    run_openssl(
-        "genpkey",
-        "-algorithm",
-        "EC",
-        "-pkeyopt",
-        "ec_paramgen_curve:P-256",
-        "-pkeyopt",
-        "ec_param_enc:named_curve",
-        "-out",
-        str(private_key),
-    )
+    if algorithm == "EC_P256":
+        run_openssl(
+            "genpkey",
+            "-algorithm",
+            "EC",
+            "-pkeyopt",
+            "ec_paramgen_curve:P-256",
+            "-pkeyopt",
+            "ec_param_enc:named_curve",
+            "-out",
+            str(private_key),
+        )
+    elif algorithm == "ED25519":
+        run_openssl("genpkey", "-algorithm", "ED25519", "-out", str(private_key))
+    else:
+        raise DevStateError(f"Unsupported local development auth key algorithm: {algorithm}")
     run_openssl("pkey", "-in", str(private_key), "-pubout", "-out", str(public_key))
-    private_key.chmod(0o600)
-    public_key.chmod(0o600)
+    private_key.chmod(mode)
+    public_key.chmod(mode)
+    validate_auth_key_pair(
+        private_key,
+        public_key,
+        label=label,
+        algorithm=algorithm,
+    )
     return private_key, public_key
 
 
@@ -258,7 +349,7 @@ def ensure_tls(state_dir: Path) -> None:
             "s3.localhost",
         )
         certificate_details = subprocess.run(
-            ["openssl", "x509", "-in", str(fullchain), "-noout", "-text"],
+            [str(openssl_binary()), "x509", "-in", str(fullchain), "-noout", "-text"],
             check=False,
             capture_output=True,
             text=True,
@@ -376,15 +467,19 @@ def prepare(args: argparse.Namespace) -> None:
     competency_trainer = validate_checkout(
         args.competency_trainer_dir, "Competency Trainer", ("backend/Dockerfile",)
     )
+    auth_api = validate_checkout(args.auth_api_dir, "Auth API", ("Dockerfile",))
     frontend = validate_checkout(args.frontend_dir, "Frontend", ("Dockerfile",))
     state_dir = args.state_dir.expanduser().absolute()
     ensure_directory(state_dir)
     state_dir = state_dir.resolve(strict=True)
 
-    platform_secrets = state_dir / "secrets/platform"
-    personal_secrets = state_dir / "secrets/personal-workspace"
-    competency_secrets = state_dir / "secrets/competency-trainer"
-    for directory in (platform_secrets, personal_secrets, competency_secrets):
+    secrets_dir = state_dir / "secrets"
+    ensure_directory(secrets_dir)
+    platform_secrets = secrets_dir / "platform"
+    personal_secrets = secrets_dir / "personal-workspace"
+    competency_secrets = secrets_dir / "competency-trainer"
+    auth_api_secrets = secrets_dir / "auth-api"
+    for directory in (platform_secrets, personal_secrets, competency_secrets, auth_api_secrets):
         ensure_directory(directory)
 
     owner_password_file = state_dir / "owner-password"
@@ -408,6 +503,14 @@ def prepare(args: argparse.Namespace) -> None:
     stable_file(personal_secrets / "sentry_dsn", str, allow_empty=True)
     stable_file(competency_secrets / "sentry_dsn", str, allow_empty=True)
     stable_file(competency_secrets / "owner_init_password", lambda: owner_password)
+    stable_file(auth_api_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
+    stable_file(auth_api_secrets / "db_password", random_token, mode=0o444)
+    stable_file(auth_api_secrets / "sentry_dsn", str, allow_empty=True, mode=0o444)
+    stable_file(
+        auth_api_secrets / "owner_init_password",
+        lambda: owner_password,
+        mode=0o444,
+    )
 
     owner_hash = personal_secrets / "owner_password_hash"
     if owner_hash.is_symlink() or (owner_hash.exists() and not owner_hash.is_file()):
@@ -417,19 +520,33 @@ def prepare(args: argparse.Namespace) -> None:
     else:
         owner_hash.chmod(0o600)
 
-    _, auth_public_key = ensure_auth_key_pair(competency_secrets)
+    _, auth_public_key = ensure_auth_key_pair(
+        competency_secrets,
+        label="Competency Trainer auth key pair",
+        algorithm="EC_P256",
+        public_key_name="auth_public_key.pem",
+    )
+    auth_api_private_key, auth_api_public_key = ensure_auth_key_pair(
+        auth_api_secrets,
+        label="Auth API auth key pair",
+        algorithm="ED25519",
+        public_key_name="auth_public_key",
+        mode=0o444,
+    )
     ensure_agent_ca(state_dir, competency_secrets)
     ensure_tls(state_dir)
 
     credentials = (
         f"Personal Workspace: owner / {owner_password}\n"
         f"Competency Trainer: owner / {owner_password}\n"
+        f"Auth API: owner / {owner_password}\n"
     )
     atomic_write(state_dir / "credentials", credentials)
 
     environment = {
         "PERSONAL_WORKSPACE_BUILD_CONTEXT": str(personal_workspace / "backend"),
         "COMPETENCY_BUILD_CONTEXT": str(competency_trainer / "backend"),
+        "AUTH_API_BUILD_CONTEXT": str(auth_api),
         "FRONTEND_BUILD_CONTEXT": str(frontend),
         "NGINX_CERTS_DIR": str(state_dir / "tls"),
         "COMPETENCY_AUTH_PUBLIC_KEY": auth_public_key.read_text(encoding="utf-8"),
@@ -453,6 +570,12 @@ def prepare(args: argparse.Namespace) -> None:
         "COMPOSE_COMPETENCY_AGENT_ISSUING_CERTIFICATE_FILE": str(competency_secrets / "agent_issuing_certificate"),
         "COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE": str(competency_secrets / "agent_issuing_private_key"),
         "COMPOSE_COMPETENCY_AGENT_CERTIFICATE_CHAIN_FILE": str(competency_secrets / "agent_certificate_chain"),
+        "COMPOSE_AUTH_API_APP_SECRET_KEY_FILE": str(auth_api_secrets / "app_secret_key"),
+        "COMPOSE_AUTH_API_AUTH_PRIVATE_KEY_FILE": str(auth_api_private_key),
+        "COMPOSE_AUTH_API_AUTH_PUBLIC_KEY_FILE": str(auth_api_public_key),
+        "COMPOSE_AUTH_API_DB_PASSWORD_FILE": str(auth_api_secrets / "db_password"),
+        "COMPOSE_AUTH_API_OWNER_INIT_PASSWORD_FILE": str(auth_api_secrets / "owner_init_password"),
+        "COMPOSE_AUTH_API_SENTRY_DSN_FILE": str(auth_api_secrets / "sentry_dsn"),
     }
     compose_environment = "".join(
         f"{name}={dotenv_value(value)}\n" for name, value in sorted(environment.items())

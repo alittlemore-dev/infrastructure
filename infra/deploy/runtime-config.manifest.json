@@ -104,6 +104,38 @@
         "DB_USER": "COMPETENCY_DB_USER",
         "DB_NAME": "COMPETENCY_DB_NAME"
       }
+    },
+    {
+      "name": "auth-api",
+      "path": "config/auth-api/production.env",
+      "variables": [
+        "APP_DEBUG",
+        "APP_DOMAIN",
+        "I18N_DEFAULT_LANGUAGE",
+        "OWNER_INIT_LOGIN",
+        "SENTRY_USE",
+        "AUTH_SESSION_ABSOLUTE_EXPIRE_SECONDS",
+        "AUTH_SESSION_EXPIRE_SECONDS",
+        "AUTH_TOKEN_EXPIRE_SECONDS",
+        "AUTH_TOKEN_HEADER_NAME",
+        "AUTH_TOKEN_PREFIX",
+        "TASKIQ_AUTH_SESSION_PRUNE_INTERVAL_SECONDS",
+        "TASKIQ_RESULT_EXPIRE_SECONDS",
+        "DB_USER",
+        "DB_DRIVER",
+        "DB_NAME",
+        "DB_POOL_PRE_PING",
+        "DB_POOL_SIZE",
+        "DB_MAX_OVERFLOW",
+        "DB_EXPIRE_ON_COMMIT",
+        "DB_LOG_QUERY_METRICS",
+        "DB_SLOW_QUERY_LOG_THRESHOLD_MS",
+        "DB_SLOW_QUERY_LOG_STATEMENT_MAX_LENGTH"
+      ],
+      "runtimeAliases": {
+        "DB_USER": "AUTH_API_DB_USER",
+        "DB_NAME": "AUTH_API_DB_NAME"
+      }
     }
   ]
 }

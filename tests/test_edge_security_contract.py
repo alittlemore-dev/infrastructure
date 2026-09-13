@@ -81,7 +81,7 @@ class EdgeSecurityContractTest(unittest.TestCase):
 
     def test_background_processes_are_slotted_and_schedulers_do_not_overlap(self) -> None:
         blocks = compose_service_blocks(COMPOSE.read_text(encoding="utf-8"))
-        for application in ("personal-workspace", "competency"):
+        for application in ("personal-workspace", "competency", "auth-api"):
             self.assertNotIn(f"{application}-taskiq-worker", blocks)
             self.assertNotIn(f"{application}-taskiq-scheduler", blocks)
             for slot in ("blue", "green"):
@@ -319,6 +319,7 @@ class EdgeSecurityContractTest(unittest.TestCase):
         self.assertIn("--platform-env", bootstrap)
         self.assertIn("--personal-workspace-env", bootstrap)
         self.assertIn("--competency-trainer-env", bootstrap)
+        self.assertIn("--auth-api-env", bootstrap)
         self.assertIn("--age-recipient", bootstrap)
         self.assertNotIn("GITHUB_SECRETS_JSON", bootstrap)
         self.assertNotIn("source ", bootstrap)

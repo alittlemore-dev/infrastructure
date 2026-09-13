@@ -4,7 +4,8 @@
 
 The unified Docker Compose runtime and deployment repository for
 [Personal Workspace](https://github.com/alittlemore-dev/personal-workspace) and
-[Competency Trainer](https://github.com/alittlemore-dev/competency-trainer), with the shared
+[Competency Trainer](https://github.com/alittlemore-dev/competency-trainer), plus
+[Auth API](https://github.com/alittlemore-dev/auth-api) and the shared
 [frontend](https://github.com/alittlemore-dev/frontend). Application source code lives in its own
 repositories and is published as container images; this repository owns the production topology,
 configuration, secrets, TLS edge, release lifecycle, and the integrated local development
@@ -12,9 +13,9 @@ entrypoint.
 
 ## Features
 
-- One public application origin and one nginx edge for both applications.
+- One public application origin and one nginx edge for all applications.
 - Namespaced API routing: `/api/personal-workspace/*` and `/api/competency/*` are translated to
-  each backend's existing `/api/*` contract.
+  each backend's existing `/api/*` contract; Auth API uses `/api/auth/*` directly.
 - Separate PostgreSQL, Valkey, credentials, volumes, and private networks for each application.
 - Shared MinIO object storage and Databasus backups with scoped identities and buckets.
 - Synchronized blue/green application rollouts with health checks and automatic routing rollback.
@@ -24,7 +25,7 @@ entrypoint.
 
 ## Local development
 
-Keep `infra`, `frontend`, `personal-workspace`, and `competency-trainer` next to each other. Trust
+Keep `infra`, `frontend`, `personal-workspace`, `competency-trainer`, and `auth-api` next to each other. Trust
 the local CA once, then start the complete stack:
 
 ```bash
@@ -33,7 +34,7 @@ make dev
 ```
 
 The shared edge and frontend are available at `https://alittlemore.localhost`. Personal Workspace
-APIs start at `/api/personal-workspace/`, and Competency Trainer APIs at `/api/competency/`.
+APIs start at `/api/personal-workspace/`, and Competency Trainer APIs at `/api/competency/`; Auth API at `/api/auth/`.
 Generated logins are stored in `.dev-state/credentials`.
 
 ## Production deployment

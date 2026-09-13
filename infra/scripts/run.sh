@@ -22,13 +22,16 @@ readonly NGINX_IMAGE_REPOSITORY=alittlemore-infra/nginx
 readonly APPLICATION_IMAGE_SERVICES=(
     personal-workspace-backend-init
     competency-backend-init
+    auth-api-backend-init
     frontend-blue
 )
 readonly INFRASTRUCTURE_SERVICES=(
     personal-workspace-postgres
     personal-workspace-valkey
     competency-postgres
+    auth-api-postgres
     competency-valkey
+    auth-api-valkey
     minio
     databasus
 )
@@ -124,6 +127,7 @@ pull_application_images() {
 run_backend_initializers() {
     docker compose run --pull never --rm personal-workspace-backend-init
     docker compose run --pull never --rm competency-backend-init
+    docker compose run --pull never --rm auth-api-backend-init
 }
 
 sync_certificates() {
@@ -157,8 +161,11 @@ verify_runtime_restart_policies() {
         "personal-workspace-taskiq-worker-${target_slot}"
         "personal-workspace-taskiq-scheduler-${target_slot}"
         "competency-backend-${target_slot}"
+        "auth-api-backend-${target_slot}"
         "competency-taskiq-worker-${target_slot}"
+        "auth-api-taskiq-worker-${target_slot}"
         "competency-taskiq-scheduler-${target_slot}"
+        "auth-api-taskiq-scheduler-${target_slot}"
         "frontend-${target_slot}"
         "${INFRASTRUCTURE_SERVICES[@]}"
     )
@@ -185,25 +192,30 @@ start_target_background_processes() {
     if [ -n "$previous_slot" ]; then
         docker compose stop \
             "personal-workspace-taskiq-scheduler-${previous_slot}" \
-            "competency-taskiq-scheduler-${previous_slot}" || return 1
+            "competency-taskiq-scheduler-${previous_slot}" \
+            "auth-api-taskiq-scheduler-${previous_slot}" || return 1
     fi
     compose_up_wait --no-build --pull never --force-recreate \
         "personal-workspace-taskiq-worker-${target_slot}" \
         "personal-workspace-taskiq-scheduler-${target_slot}" \
         "competency-taskiq-worker-${target_slot}" \
-        "competency-taskiq-scheduler-${target_slot}" || return 1
+        "auth-api-taskiq-worker-${target_slot}" \
+        "competency-taskiq-scheduler-${target_slot}" \
+        "auth-api-taskiq-scheduler-${target_slot}" || return 1
 }
 
 restore_previous_background_processes() {
     docker compose stop \
         "personal-workspace-taskiq-scheduler-${target_slot}" \
-        "competency-taskiq-scheduler-${target_slot}" || {
+        "competency-taskiq-scheduler-${target_slot}" \
+        "auth-api-taskiq-scheduler-${target_slot}" || {
         echo "Could not stop target schedulers; refusing to start the previous schedulers." >&2
         return 1
     }
     docker compose stop \
         "personal-workspace-taskiq-worker-${target_slot}" \
-        "competency-taskiq-worker-${target_slot}" || \
+        "competency-taskiq-worker-${target_slot}" \
+        "auth-api-taskiq-worker-${target_slot}" || \
         echo "Target workers could not be fully stopped during rollback." >&2
 
     if [ -z "$previous_slot" ]; then
@@ -213,7 +225,9 @@ restore_previous_background_processes() {
         "personal-workspace-taskiq-worker-${previous_slot}" \
         "personal-workspace-taskiq-scheduler-${previous_slot}" \
         "competency-taskiq-worker-${previous_slot}" \
-        "competency-taskiq-scheduler-${previous_slot}" || return 1
+        "auth-api-taskiq-worker-${previous_slot}" \
+        "competency-taskiq-scheduler-${previous_slot}" \
+        "auth-api-taskiq-scheduler-${previous_slot}" || return 1
 }
 
 save_active_slot() {
@@ -270,8 +284,11 @@ stop_previous_slot() {
         "personal-workspace-taskiq-worker-${previous}" \
         "personal-workspace-taskiq-scheduler-${previous}" \
         "competency-backend-${previous}" \
+        "auth-api-backend-${previous}" \
         "competency-taskiq-worker-${previous}" \
+        "auth-api-taskiq-worker-${previous}" \
         "competency-taskiq-scheduler-${previous}" \
+        "auth-api-taskiq-scheduler-${previous}" \
         "frontend-${previous}"; then
         echo "The new slot is active, but the previous slot could not be fully stopped." >&2
         return
@@ -293,6 +310,7 @@ restore_previous_edge() {
         docker compose stop \
             "personal-workspace-backend-${target_slot}" \
             "competency-backend-${target_slot}" \
+            "auth-api-backend-${target_slot}" \
             "frontend-${target_slot}" || \
             echo "Some first-deployment target application containers could not be stopped." >&2
         return
@@ -300,6 +318,7 @@ restore_previous_edge() {
 
     export PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-${previous_slot}"
     export COMPETENCY_ACTIVE_BACKEND="competency-backend-${previous_slot}"
+    export AUTH_API_ACTIVE_BACKEND="auth-api-backend-${previous_slot}"
     export FRONTEND_ACTIVE="frontend-${previous_slot}"
     export NGINX_IMAGE="${NGINX_IMAGE_REPOSITORY}:${previous_slot}"
 
@@ -341,6 +360,7 @@ prepare_compose_secret_files "$target_slot"
 
 export PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-${target_slot}"
 export COMPETENCY_ACTIVE_BACKEND="competency-backend-${target_slot}"
+export AUTH_API_ACTIVE_BACKEND="auth-api-backend-${target_slot}"
 export FRONTEND_ACTIVE="frontend-${target_slot}"
 
 pull_application_images
@@ -351,6 +371,7 @@ run_backend_initializers
 compose_up_wait --no-build --pull never --force-recreate \
     "$PERSONAL_WORKSPACE_ACTIVE_BACKEND" \
     "$COMPETENCY_ACTIVE_BACKEND" \
+    "$AUTH_API_ACTIVE_BACKEND" \
     "$FRONTEND_ACTIVE"
 sync_certificates
 build_and_validate_candidate_edge
@@ -377,4 +398,4 @@ fi
 trap - HUP INT TERM
 stop_previous_slot "$previous_slot"
 
-echo "Unified deployment slot ${target_slot} is active for both applications."
+echo "Unified deployment slot ${target_slot} is active for all applications."

@@ -29,6 +29,24 @@ services:
     image: scratch
   competency-taskiq-scheduler-green:
     image: scratch
+  auth-api-backend-blue:
+    image: scratch
+  auth-api-backend-green:
+    image: scratch
+  auth-api-backend-init:
+    image: scratch
+  auth-api-taskiq-worker-blue:
+    image: scratch
+  auth-api-taskiq-worker-green:
+    image: scratch
+  auth-api-taskiq-scheduler-blue:
+    image: scratch
+  auth-api-taskiq-scheduler-green:
+    image: scratch
+  auth-api-postgres:
+    image: scratch
+  auth-api-valkey:
+    image: scratch
   frontend-blue:
     image: scratch
   frontend-green:

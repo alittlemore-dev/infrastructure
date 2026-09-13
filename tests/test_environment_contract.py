@@ -65,14 +65,14 @@ class EnvironmentContractTest(unittest.TestCase):
         configs = {entry["name"]: entry for entry in manifest["configs"]}
 
         self.assertEqual(
-            {"platform", "personal-workspace", "competency-trainer"}, set(configs)
+            {"platform", "personal-workspace", "competency-trainer", "auth-api"}, set(configs)
         )
         for config in configs.values():
             self.assertEqual(
                 set(config["variables"]),
                 env_names(ROOT / config["path"]),
             )
-        for application in ("personal-workspace", "competency-trainer"):
+        for application in ("personal-workspace", "competency-trainer", "auth-api"):
             names = set(configs[application]["variables"])
             self.assertIn("APP_DEBUG", names)
             self.assertIn("APP_DOMAIN", names)
@@ -85,7 +85,7 @@ class EnvironmentContractTest(unittest.TestCase):
         documents = {entry["name"]: entry for entry in secret_manifest()["documents"]}
 
         self.assertEqual(
-            {"platform", "personal-workspace", "competency-trainer"}, set(documents)
+            {"platform", "personal-workspace", "competency-trainer", "auth-api"}, set(documents)
         )
         personal_names = {entry["name"] for entry in documents["personal-workspace"]["secrets"]}
         competency_names = {
@@ -140,6 +140,8 @@ class EnvironmentContractTest(unittest.TestCase):
             "PERSONAL_WORKSPACE_ENV_FILE",
             "COMPETENCY_ACTIVE_BACKEND",
             "COMPETENCY_ENV_FILE",
+            "AUTH_API_ACTIVE_BACKEND",
+            "AUTH_API_ENV_FILE",
             "FRONTEND_ACTIVE",
             "NGINX_IMAGE",
         }

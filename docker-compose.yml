@@ -136,6 +136,44 @@ x-competency-backend: &competency-backend
     - source: competency_sentry_dsn
       target: sentry_dsn
 
+x-auth-api-backend: &auth-api-backend
+  <<: *backend-runtime
+  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/auth-api:latest"
+  networks:
+    - auth-api-network
+  env_file:
+    - ${AUTH_API_ENV_FILE:-./config/auth-api/production.env}
+  environment: &auth-api-backend-environment
+    APP_DOMAIN: ${APP_DOMAIN}
+    APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
+    APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+    AUTH_PUBLIC_KEY_FILE: /run/secrets/auth_public_key
+    AUTH_PRIVATE_KEY_FILE: /run/secrets/auth_private_key
+    DB_HOST: auth-api-postgres
+    DB_PASSWORD_FILE: /run/secrets/db_password
+    DB_PORT: 5432
+    OWNER_INIT_PASSWORD_FILE: /run/secrets/owner_init_password
+    SENTRY_DSN_FILE: /run/secrets/sentry_dsn
+    VALKEY_HOST: auth-api-valkey
+    VALKEY_PORT: 6379
+  secrets: &auth-api-backend-secrets
+    - source: auth_api_app_secret_key
+      target: app_secret_key
+    - source: auth_api_auth_public_key
+      target: auth_public_key
+    - source: auth_api_auth_private_key
+      target: auth_private_key
+    - source: auth_api_db_password
+      target: db_password
+    - source: auth_api_owner_init_password
+      target: owner_init_password
+    - source: auth_api_sentry_dsn
+      target: sentry_dsn
+
+x-auth-api-healthcheck: &auth-api-healthcheck
+  <<: *backend-healthcheck
+  test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/auth/healthcheck/ready', timeout=3).close()"]
+
 x-competency-agent-secrets: &competency-agent-secrets
   - source: competency_app_secret_key
     target: app_secret_key
@@ -317,6 +355,78 @@ services:
         condition: service_healthy
     healthcheck: *process-healthcheck
 
+  auth-api-backend-blue:
+    <<: *auth-api-backend
+    container_name: auth_api_backend_blue
+    command: bash start_application.sh run
+    depends_on:
+      auth-api-postgres:
+        condition: service_healthy
+      auth-api-valkey:
+        condition: service_healthy
+    healthcheck: *auth-api-healthcheck
+
+  auth-api-backend-green:
+    <<: *auth-api-backend
+    container_name: auth_api_backend_green
+    command: bash start_application.sh run
+    depends_on:
+      auth-api-postgres:
+        condition: service_healthy
+      auth-api-valkey:
+        condition: service_healthy
+    healthcheck: *auth-api-healthcheck
+
+  auth-api-backend-init:
+    <<: *auth-api-backend
+    restart: "no"
+    command: bash start_application.sh init
+    depends_on:
+      auth-api-postgres:
+        condition: service_healthy
+      auth-api-valkey:
+        condition: service_healthy
+
+  auth-api-taskiq-worker-blue:
+    <<: *auth-api-backend
+    container_name: auth_api_taskiq_worker_blue
+    command: bash start_application.sh taskiq-worker
+    depends_on:
+      auth-api-postgres:
+        condition: service_healthy
+      auth-api-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  auth-api-taskiq-worker-green:
+    <<: *auth-api-backend
+    container_name: auth_api_taskiq_worker_green
+    command: bash start_application.sh taskiq-worker
+    depends_on:
+      auth-api-postgres:
+        condition: service_healthy
+      auth-api-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  auth-api-taskiq-scheduler-blue:
+    <<: *auth-api-backend
+    container_name: auth_api_taskiq_scheduler_blue
+    command: bash start_application.sh taskiq-scheduler
+    depends_on:
+      auth-api-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
+  auth-api-taskiq-scheduler-green:
+    <<: *auth-api-backend
+    container_name: auth_api_taskiq_scheduler_green
+    command: bash start_application.sh taskiq-scheduler
+    depends_on:
+      auth-api-valkey:
+        condition: service_healthy
+    healthcheck: *process-healthcheck
+
   frontend-blue:
     <<: *frontend-runtime
     image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/frontend:latest"
@@ -492,6 +602,44 @@ services:
       timeout: 60s
       retries: 12
 
+  auth-api-postgres:
+    image: postgres:18.4-alpine
+    container_name: auth_api_postgres
+    user: "70:70"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AUTH_API_DB_NAME}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_USER: ${AUTH_API_DB_USER}
+    secrets:
+      - source: auth_api_db_password
+        target: db_password
+    volumes:
+      - auth_api_postgres_data:/var/lib/postgresql
+    networks:
+      - auth-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 60s
+      retries: 12
+
+  auth-api-valkey:
+    command: ["valkey-server", "--appendonly", "yes"]
+    image: valkey/valkey:9.0.1
+    container_name: auth_api_valkey
+    user: "999:999"
+    restart: unless-stopped
+    volumes:
+      - auth_api_valkey_data:/data
+    networks:
+      - auth-api-network
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 60s
+      retries: 12
+
   databasus:
     image: databasus/databasus:v3.47.1
     container_name: alittlemore_infra_databasus
@@ -501,6 +649,7 @@ services:
     networks:
       - personal-workspace-network
       - competency-network
+      - auth-api-network
     depends_on:
       personal-workspace-postgres:
         condition: service_healthy
@@ -536,6 +685,7 @@ services:
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
       PERSONAL_WORKSPACE_ACTIVE_BACKEND: ${PERSONAL_WORKSPACE_ACTIVE_BACKEND:-personal-workspace-backend-blue}
+      AUTH_API_ACTIVE_BACKEND: ${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}
       COMPETENCY_ACTIVE_BACKEND: ${COMPETENCY_ACTIVE_BACKEND:-competency-backend-blue}
       FRONTEND_ACTIVE: ${FRONTEND_ACTIVE:-frontend-blue}
       MINIO_DOMAIN: ${MINIO_DOMAIN}
@@ -558,6 +708,7 @@ services:
     networks:
       - personal-workspace-network
       - competency-network
+      - auth-api-network
     healthcheck:
       test: ["CMD", "/usr/local/bin/alittlemore-nginx-healthcheck"]
       interval: 5s
@@ -604,6 +755,8 @@ services:
     network_mode: none
 
 networks:
+  auth-api-network:
+    driver: bridge
   personal-workspace-network:
     driver: bridge
   competency-network:
@@ -612,6 +765,8 @@ networks:
     driver: bridge
 
 volumes:
+  auth_api_postgres_data:
+  auth_api_valkey_data:
   personal_workspace_postgres_data:
   personal_workspace_valkey_data:
   competency_postgres_data:
@@ -662,3 +817,20 @@ secrets:
     file: ${COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE:?prepare Compose secrets first}
   competency_agent_certificate_chain:
     file: ${COMPOSE_COMPETENCY_AGENT_CERTIFICATE_CHAIN_FILE:?prepare Compose secrets first}
+  auth_api_app_secret_key:
+    file: ${COMPOSE_AUTH_API_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
+
+  auth_api_auth_private_key:
+    file: ${COMPOSE_AUTH_API_AUTH_PRIVATE_KEY_FILE:?prepare Compose secrets first}
+
+  auth_api_auth_public_key:
+    file: ${COMPOSE_AUTH_API_AUTH_PUBLIC_KEY_FILE:?prepare Compose secrets first}
+
+  auth_api_db_password:
+    file: ${COMPOSE_AUTH_API_DB_PASSWORD_FILE:?prepare Compose secrets first}
+
+  auth_api_owner_init_password:
+    file: ${COMPOSE_AUTH_API_OWNER_INIT_PASSWORD_FILE:?prepare Compose secrets first}
+
+  auth_api_sentry_dsn:
+    file: ${COMPOSE_AUTH_API_SENTRY_DSN_FILE:?prepare Compose secrets first}

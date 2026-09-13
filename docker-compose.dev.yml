@@ -8,6 +8,10 @@ x-competency-dev-image: &competency-dev-image
   environment:
     AUTH_PUBLIC_KEY: ${COMPETENCY_AUTH_PUBLIC_KEY:?local auth public key must be generated}
 
+x-auth-api-dev-image: &auth-api-dev-image
+  image: alittlemore-dev/auth-api:local
+  pull_policy: never
+
 services:
   personal-workspace-backend-blue:
     <<: *personal-workspace-dev-image
@@ -75,6 +79,39 @@ services:
     container_name: alittlemore_dev_competency_taskiq_scheduler_green
     profiles: [production-only]
 
+  auth-api-backend-blue:
+    <<: *auth-api-dev-image
+    build:
+      context: ${AUTH_API_BUILD_CONTEXT:?Auth API checkout is required}
+      dockerfile: Dockerfile
+    container_name: alittlemore_dev_auth_api_backend_blue
+
+  auth-api-backend-green:
+    <<: *auth-api-dev-image
+    container_name: alittlemore_dev_auth_api_backend_green
+    profiles: [production-only]
+
+  auth-api-backend-init:
+    <<: *auth-api-dev-image
+
+  auth-api-taskiq-worker-blue:
+    <<: *auth-api-dev-image
+    container_name: alittlemore_dev_auth_api_taskiq_worker_blue
+
+  auth-api-taskiq-worker-green:
+    <<: *auth-api-dev-image
+    container_name: alittlemore_dev_auth_api_taskiq_worker_green
+    profiles: [production-only]
+
+  auth-api-taskiq-scheduler-blue:
+    <<: *auth-api-dev-image
+    container_name: alittlemore_dev_auth_api_taskiq_scheduler_blue
+
+  auth-api-taskiq-scheduler-green:
+    <<: *auth-api-dev-image
+    container_name: alittlemore_dev_auth_api_taskiq_scheduler_green
+    profiles: [production-only]
+
   frontend-blue:
     image: alittlemore-dev/frontend:local
     pull_policy: never
@@ -100,6 +137,12 @@ services:
 
   competency-valkey:
     container_name: alittlemore_dev_competency_valkey
+
+  auth-api-postgres:
+    container_name: alittlemore_dev_auth_api_postgres
+
+  auth-api-valkey:
+    container_name: alittlemore_dev_auth_api_valkey
 
   minio:
     image: alittlemore-dev/minio:local

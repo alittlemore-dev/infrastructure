@@ -102,6 +102,31 @@ validate_minio_credentials() {
     fi
 }
 
+validate_auth_api_pki() {
+    local auth_dir="$1/auth-api"
+    local declared_public
+    local derived_public
+    local public_description
+    local openssl_binary
+
+    openssl_binary="$(python3 "${BASH_SOURCE[0]%/*}/openssl_tools.py")" || return 1
+
+    if ! declared_public="$("$openssl_binary" pkey -pubin -in "$auth_dir/auth_public_key" -pubout 2>/dev/null)" \
+        || ! derived_public="$("$openssl_binary" pkey -in "$auth_dir/auth_private_key" -pubout 2>/dev/null)" \
+        || ! public_description="$("$openssl_binary" pkey -pubin -in "$auth_dir/auth_public_key" -text -noout 2>/dev/null)"; then
+        echo "Invalid auth-api key pair; Ed25519 keys and a compatible OpenSSL are required." >&2
+        return 1
+    fi
+    if [[ "$public_description" != *"ED25519 Public-Key:"* ]]; then
+        echo "auth-api requires Ed25519 keys for PASETO v4.public." >&2
+        return 1
+    fi
+    if [ "$declared_public" != "$derived_public" ]; then
+        echo "AUTH_PUBLIC_KEY does not match AUTH_PRIVATE_KEY for auth-api." >&2
+        return 1
+    fi
+}
+
 validate_competency_pki() {
     local secrets_dir="$1"
     local competency_dir="${secrets_dir}/competency-trainer"
@@ -361,7 +386,8 @@ prepare_compose_secret_files() {
     done
 
     if ! validate_minio_credentials \
-        || ! validate_competency_pki "$candidate_dir"; then
+        || ! validate_competency_pki "$candidate_dir" \
+        || ! validate_auth_api_pki "$candidate_dir"; then
         exit 1
     fi
     if ! fingerprint_mode="$(verify_minio_credential_fingerprints \

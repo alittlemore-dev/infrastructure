@@ -8,12 +8,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from openssl_tools import OpenSSLResolutionError, resolve_openssl
 from quality_tools import TOOLS, ToolError, ensure_tools
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_DIR = SCRIPT_DIR.parent.parent
-REQUIRED_HOST_COMMANDS = ("bash", "make", "openssl", "ssh-keygen")
+REQUIRED_HOST_COMMANDS = ("bash", "make", "ssh-keygen")
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,10 +40,15 @@ def main() -> int:
         print(f"run_tests.py: missing required commands: {', '.join(missing)}", file=sys.stderr)
         return 1
     try:
+        openssl = resolve_openssl(environment)
         resolved = ensure_tools(args.cache_dir, environment)
-    except (OSError, ToolError) as exc:
+    except (OSError, OpenSSLResolutionError, ToolError) as exc:
         print(f"run_tests.py: {exc}", file=sys.stderr)
         return 1
+    environment["OPENSSL_BINARY"] = str(openssl)
+    environment["PATH"] = os.pathsep.join(
+        (str(openssl.parent), environment.get("PATH", ""))
+    )
     for name, path in resolved.items():
         environment[TOOLS[name].environment_variable] = str(path)
     result = subprocess.run(

@@ -6,7 +6,8 @@ This directory contains only SOPS-encrypted production documents:
 secrets/
 ├── platform/production.sops.yaml
 ├── personal-workspace/production.sops.yaml
-└── competency-trainer/production.sops.yaml
+├── competency-trainer/production.sops.yaml
+└── auth-api/production.sops.yaml
 ```
 
 Create the initial files locally from owner-only, service-scoped dotenv sources with
