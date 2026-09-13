@@ -523,7 +523,7 @@ def prepare(args: argparse.Namespace) -> None:
     _, auth_public_key = ensure_auth_key_pair(
         competency_secrets,
         label="Competency Trainer auth key pair",
-        algorithm="EC_P256",
+        algorithm="ED25519",
         public_key_name="auth_public_key.pem",
     )
     auth_api_private_key, auth_api_public_key = ensure_auth_key_pair(

@@ -174,7 +174,7 @@ class DevStateTest(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(0, competency_key_details.returncode, competency_key_details.stderr)
-            self.assertIn("NIST CURVE: P-256", competency_key_details.stdout.upper())
+            self.assertIn("ED25519", competency_key_details.stdout.upper())
             auth_key_details = subprocess.run(
                 ["openssl", "pkey", "-in", str(auth_private_key), "-text", "-noout"],
                 check=False,
