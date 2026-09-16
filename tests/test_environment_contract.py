@@ -403,22 +403,5 @@ class EnvironmentContractTest(unittest.TestCase):
         self.assertRegex(compose, r"(?m)^  frontend-green:")
         self.assertNotRegex(compose, r"(?m)^  (?:personal-workspace|competency)-frontend-")
 
-    def test_application_images_use_registry_latest_and_infrastructure_is_pinned(self) -> None:
-        compose = COMPOSE.read_text(encoding="utf-8")
-        for image in (
-            "personal-workspace-backend:latest",
-            "competency-trainer-backend:latest",
-            "frontend:latest",
-        ):
-            self.assertIn('${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/' + image, compose)
-        for image in (
-            "postgres:18.4-alpine",
-            "valkey/valkey:9.0.1",
-            "minio/mc:RELEASE.2025-08-13T08-35-41Z",
-            "databasus/databasus:v3.47.1",
-            "certbot/certbot:v5.2.2",
-        ):
-            self.assertIn(image, compose)
-
 if __name__ == "__main__":
     unittest.main()

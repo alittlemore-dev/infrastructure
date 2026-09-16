@@ -92,4 +92,5 @@ make security-images
 ## Documentation
 
 - [Production deployment and operations](../docs/production-deploy.md)
+- [WireGuard internal access](../docs/wireguard-internal-access.md)
 - [Encrypted secrets layout](../secrets/README.md)

@@ -94,8 +94,8 @@ already identifies the operator-selected payload.
 `IMAGE_REGISTRY` is the registry/repository prefix, for example `ghcr.io/alittlemore-dev`, and must
 not end in `/`. The application repositories build and publish these images:
 
-- `${IMAGE_REGISTRY}/personal-workspace-backend:latest`
-- `${IMAGE_REGISTRY}/competency-trainer-backend:latest`
+- `${IMAGE_REGISTRY}/personal-workspace:latest`
+- `${IMAGE_REGISTRY}/competency-trainer:latest`
 - `${IMAGE_REGISTRY}/auth-api:latest`
 - `${IMAGE_REGISTRY}/frontend:latest`
 
@@ -532,6 +532,9 @@ configurable. MinIO CORS allows the shared application origin. The public S3 end
 `knowledge-private` and `database-backups` before a request reaches MinIO.
 
 ## Private network boundaries
+
+Host setup, firewall rules, split DNS, verification, and peer revocation are documented in
+[WireGuard internal access](wireguard-internal-access.md).
 
 Only nginx publishes normal runtime ports. `80` and `443` are public. Ports `18081` through `18083`
 must bind to `VPN_BIND_ADDRESS`; do not use `0.0.0.0` or a public interface address. PostgreSQL,

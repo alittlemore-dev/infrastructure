@@ -462,10 +462,10 @@ def dotenv_value(value: str) -> str:
 def prepare(args: argparse.Namespace) -> None:
     repo_dir = args.repo_dir.expanduser().resolve(strict=True)
     personal_workspace = validate_checkout(
-        args.personal_workspace_dir, "Personal Workspace", ("backend/Dockerfile",)
+        args.personal_workspace_dir, "Personal Workspace", ("Dockerfile",)
     )
     competency_trainer = validate_checkout(
-        args.competency_trainer_dir, "Competency Trainer", ("backend/Dockerfile",)
+        args.competency_trainer_dir, "Competency Trainer", ("Dockerfile",)
     )
     auth_api = validate_checkout(args.auth_api_dir, "Auth API", ("Dockerfile",))
     frontend = validate_checkout(args.frontend_dir, "Frontend", ("Dockerfile",))
@@ -544,8 +544,8 @@ def prepare(args: argparse.Namespace) -> None:
     atomic_write(state_dir / "credentials", credentials)
 
     environment = {
-        "PERSONAL_WORKSPACE_BUILD_CONTEXT": str(personal_workspace / "backend"),
-        "COMPETENCY_BUILD_CONTEXT": str(competency_trainer / "backend"),
+        "PERSONAL_WORKSPACE_BUILD_CONTEXT": str(personal_workspace),
+        "COMPETENCY_BUILD_CONTEXT": str(competency_trainer),
         "AUTH_API_BUILD_CONTEXT": str(auth_api),
         "FRONTEND_BUILD_CONTEXT": str(frontend),
         "NGINX_CERTS_DIR": str(state_dir / "tls"),

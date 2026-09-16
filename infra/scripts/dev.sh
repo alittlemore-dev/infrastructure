@@ -44,7 +44,7 @@ prepare_owner_password_hash() {
             --pull never \
             --env DEV_OWNER_PASSWORD \
             --entrypoint python \
-            alittlemore-dev/personal-workspace-backend:local \
+            alittlemore-dev/personal-workspace:local \
             -c 'import os; from argon2 import PasswordHasher; print(PasswordHasher().hash(os.environ["DEV_OWNER_PASSWORD"]))'
     )"
     unset DEV_OWNER_PASSWORD

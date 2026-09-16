@@ -97,4 +97,5 @@ make security-images
 ## Документация
 
 - [Production deployment и эксплуатация](../docs/production-deploy.md)
+- [Внутренний доступ WireGuard](../docs/wireguard-internal-access.md)
 - [Структура зашифрованных секретов](../secrets/README.md)

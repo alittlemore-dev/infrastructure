@@ -52,7 +52,7 @@ x-process-healthcheck: &process-healthcheck
 
 x-personal-workspace-backend: &personal-workspace-backend
   <<: *backend-runtime
-  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/personal-workspace-backend:latest"
+  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/personal-workspace:latest"
   networks:
     - personal-workspace-network
   env_file:
@@ -92,7 +92,7 @@ x-personal-workspace-backend: &personal-workspace-backend
 
 x-competency-backend: &competency-backend
   <<: *backend-runtime
-  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/competency-trainer-backend:latest"
+  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/competency-trainer:latest"
   networks:
     - competency-network
   env_file:
@@ -524,7 +524,7 @@ services:
       retries: 12
 
   minio-bootstrap:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: alittlemore_infra_minio_bootstrap
     user: "10003:10003"
     read_only: true

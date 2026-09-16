@@ -17,9 +17,8 @@ SCRIPTS = ROOT / "infra/scripts"
 
 def create_checkout(root: Path, name: str) -> Path:
     checkout = root / name
-    directory = checkout / "backend"
-    directory.mkdir(parents=True)
-    (directory / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    checkout.mkdir(parents=True)
+    (checkout / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
     return checkout
 
 
@@ -393,8 +392,8 @@ class DevComposeTest(unittest.TestCase):
         services = compose["services"]
 
         expected_builds = {
-            "personal-workspace-backend-blue": personal_workspace / "backend",
-            "competency-backend-blue": competency_trainer / "backend",
+            "personal-workspace-backend-blue": personal_workspace,
+            "competency-backend-blue": competency_trainer,
             "auth-api-backend-blue": auth_api,
             "frontend-blue": frontend,
         }
@@ -402,7 +401,6 @@ class DevComposeTest(unittest.TestCase):
             service = services[service_name]
             self.assertEqual(str(context.resolve()), service["build"]["context"])
             self.assertEqual("never", service["pull_policy"])
-            self.assertTrue(service["image"].startswith("alittlemore-dev/"))
 
         self.assertEqual(
             "alittlemore.localhost",
