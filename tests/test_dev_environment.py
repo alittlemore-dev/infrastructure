@@ -90,9 +90,6 @@ class DevStateTest(unittest.TestCase):
             private_stable_files = (
                 state_dir / "credentials",
                 state_dir / "secrets/platform/minio_root_secret_key",
-                state_dir / "secrets/personal-workspace/app_secret_key",
-                state_dir / "secrets/competency-trainer/app_secret_key",
-                state_dir / "secrets/competency-trainer/auth_private_key",
                 state_dir / "secrets/competency-trainer/agent_issuing_private_key",
                 state_dir / "tls/local-development-ca.key.pem",
             )
@@ -159,21 +156,6 @@ class DevStateTest(unittest.TestCase):
 
             auth_private_key = state_dir / "secrets/auth-api/auth_private_key"
             auth_public_key = state_dir / "secrets/auth-api/auth_public_key"
-            competency_key_details = subprocess.run(
-                [
-                    "openssl",
-                    "pkey",
-                    "-in",
-                    str(state_dir / "secrets/competency-trainer/auth_private_key"),
-                    "-text",
-                    "-noout",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(0, competency_key_details.returncode, competency_key_details.stderr)
-            self.assertIn("ED25519", competency_key_details.stdout.upper())
             auth_key_details = subprocess.run(
                 ["openssl", "pkey", "-in", str(auth_private_key), "-text", "-noout"],
                 check=False,
@@ -194,8 +176,6 @@ class DevStateTest(unittest.TestCase):
             )
 
             credentials = (state_dir / "credentials").read_text(encoding="utf-8")
-            self.assertIn("Personal Workspace: owner / ", credentials)
-            self.assertIn("Competency Trainer: owner / ", credentials)
             self.assertIn("Auth API: owner / ", credentials)
             self.assertNotIn("production", credentials.lower())
 
@@ -408,11 +388,7 @@ class DevComposeTest(unittest.TestCase):
         )
         competency_backend = services["competency-backend-blue"]
         self.assertEqual("alittlemore.localhost", competency_backend["environment"]["APP_DOMAIN"])
-        self.assertTrue(
-            competency_backend["environment"]["AUTH_PUBLIC_KEY"].startswith(
-                "-----BEGIN PUBLIC KEY-----\n"
-            )
-        )
+        self.assertNotIn("AUTH_PUBLIC_KEY", competency_backend["environment"])
         auth_backend = services["auth-api-backend-blue"]
         self.assertEqual("alittlemore.localhost", auth_backend["environment"]["APP_DOMAIN"])
         self.assertEqual(
@@ -541,7 +517,6 @@ class DevOrchestrationTest(unittest.TestCase):
                 "#!/bin/sh\n"
                 "printf '%s\\n' \"$*\" >>\"$FAKE_DOCKER_LOG\"\n"
                 "if [ \"$1 $2 $3\" = 'compose version --short' ]; then printf '2.24.0\\n'; fi\n"
-                "if [ \"$1\" = run ]; then printf '%s\\n' '$argon2id$v=19$m=65536,t=3,p=4$localhash'; fi\n"
                 "exit 0\n",
             )
             make_executable(
@@ -602,8 +577,6 @@ class DevOrchestrationTest(unittest.TestCase):
             ):
                 self.assertIn(url, curl_calls)
 
-            self.assertIn("Personal Workspace: owner / ", result.stdout)
-            self.assertIn("Competency Trainer: owner / ", result.stdout)
             self.assertIn("Auth API: owner / ", result.stdout)
 
 

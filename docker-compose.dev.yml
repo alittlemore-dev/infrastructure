@@ -5,8 +5,6 @@ x-personal-workspace-dev-image: &personal-workspace-dev-image
 x-competency-dev-image: &competency-dev-image
   image: alittlemore-dev/competency-trainer:local
   pull_policy: never
-  environment:
-    AUTH_PUBLIC_KEY: ${COMPETENCY_AUTH_PUBLIC_KEY:?local auth public key must be generated}
 
 x-auth-api-dev-image: &auth-api-dev-image
   image: alittlemore-dev/auth-api:local

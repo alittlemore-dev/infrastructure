@@ -119,12 +119,11 @@ and translates the namespaced public paths before forwarding them:
 - `/healthz` checks the edge itself;
 - unknown `/api/*` paths return `404` and are never sent to the frontend.
 
-The gateway also rewrites backend redirects back into the public namespace. Competency Trainer's
-refresh-cookie path is rewritten from `/api/auth` to `/api/competency/auth`, so it remains scoped to
-that service after the URL migration. `/sitemap.xml` and `/robots.txt` remain served by Competency
-Trainer. `s3.alittlemore.dev` stays a separate storage origin because S3 URL/signature semantics do
-not fit the application path router. `agent.alittlemore.dev` remains a closed public TLS contour and
-the corresponding Agent API is exposed only on the VPN-bound mTLS port `18083`.
+The gateway also rewrites backend redirects back into the public namespace. `/sitemap.xml` and
+`/robots.txt` remain served by Competency Trainer. `s3.alittlemore.dev` stays a separate storage
+origin because S3 URL/signature semantics do not fit the application path router.
+`agent.alittlemore.dev` remains a closed public TLS contour and the corresponding Agent API is
+exposed only on the VPN-bound mTLS port `18083`.
 
 Infrastructure dependencies use fixed tags in `docker-compose.yml` and the three infrastructure
 Dockerfiles. Locally built MinIO, nginx, and certificate-sync images use stable local tags so an
@@ -196,8 +195,9 @@ secrets/
 └── auth-api/production.sops.yaml
 ```
 
-Like open configuration, each application document uses native names such as `APP_SECRET_KEY`,
-`DB_PASSWORD`, `MINIO_ACCESS_KEY`, and `SENTRY_DSN`; the document path is the namespace.
+Like open configuration, each application document uses native names such as `DB_PASSWORD`,
+`MINIO_ACCESS_KEY`, and `SENTRY_DSN`; Auth API additionally owns `APP_SECRET_KEY`. The document
+path is the namespace.
 `infra/deploy/runtime-secrets.manifest.json` uses the same native names. No prefixed migration
 aliases are passed to applications or retained in the manifest.
 
@@ -218,14 +218,14 @@ identities are mounted into the bootstrap and their respective backend processes
 Databasus identity is created by the bootstrap; its credentials are entered into Databasus when
 the S3 destination is configured in the VPN-only UI.
 
-Auth API has its own Ed25519 PASETO pair, stored together in its encrypted document and
-validated for algorithm and equality before rollout. Existing applications keep their current
-authentication until a separate migration.
+Auth API owns human login, accounts, sessions, and token refresh. Its Ed25519 PASETO pair is stored
+together in its encrypted document and validated for algorithm and equality before rollout.
+Personal Workspace and Competency Trainer do not carry separate local human-authentication keys or
+owner credentials.
 
-The Competency Trainer PASETO public/private key pair and Agent Access issuing material are parsed
-with OpenSSL before Compose changes the running stack. The PASETO public key must match its private
-key. The issuing certificate must be the first certificate in the two-certificate issuing/root
-chain and must match the issuing private key.
+The Competency Trainer Agent Access issuing material is parsed with OpenSSL before Compose changes
+the running stack. The issuing certificate must be the first certificate in the two-certificate
+issuing/root chain and must match the issuing private key.
 
 No plaintext PEM files are tracked or deployed by rsync. Multiline application and Agent PKI
 values exist in Git only inside SOPS-encrypted documents and are materialized into owner-only
@@ -237,7 +237,7 @@ sync keeps the current certificate release and at most two older releases.
 ### One-time local secret bootstrap
 
 Prepare four owner-only dotenv files outside the repository. Each file is scoped to one SOPS
-document, so repeated native names such as `APP_SECRET_KEY` and `DB_PASSWORD` need no prefixes:
+document, so repeated native names such as `DB_PASSWORD` need no prefixes:
 
 1. Install `age` on the production host and on a separate recovery machine.
 2. Generate two independent identities with `age-keygen`: one for production and one for recovery.
@@ -374,13 +374,12 @@ rotation:
 | Secret | Required handling |
 | --- | --- |
 | `SENTRY_DSN` and ordinary API tokens | Edit the owning SOPS document, verify, and deploy. |
-| `OWNER_PASSWORD_HASH` | Generate a new Argon2id hash and deploy it. Existing stateless sessions remain valid unless the application session secret is also rotated. |
-| `APP_SECRET_KEY` | Expect existing application sessions or signed values to become invalid. |
+| Auth API `APP_SECRET_KEY` | Expect existing Auth API sessions or signed values to become invalid. |
 | `DB_PASSWORD` | Change the PostgreSQL role password in the same maintenance operation; changing SOPS alone does not update an initialized database. |
 | Any MinIO access or secret key | Use a dedicated rotation procedure. Ordinary startup rejects changes after the first successful bootstrap by comparing stored fingerprints. Databasus' saved S3 destination must be updated when its identity rotates. |
-| Competency authentication private key | Update the matching public key and account for invalidated tokens. |
 | Agent issuing key or certificate | Replace the issuing private key, issuing certificate, and two-certificate issuing/root chain as one validated set. |
-| `OWNER_INIT_PASSWORD` | Treat it as initialization input; changing it does not automatically update an existing account. |
+| Auth API `AUTH_PRIVATE_KEY` | Update the matching Auth API public key and account for invalidated tokens. |
+| Auth API `OWNER_INIT_PASSWORD` | Treat it as initialization input; changing it does not automatically update an existing account. |
 
 ### Instructions for AI agents
 

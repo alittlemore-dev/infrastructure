@@ -489,11 +489,9 @@ def prepare(args: argparse.Namespace) -> None:
         platform_secrets / "minio_root_secret_key": random_token,
         platform_secrets / "databasus_minio_access_key": lambda: f"local-backup-{secrets.token_hex(6)}",
         platform_secrets / "databasus_minio_secret_key": random_token,
-        personal_secrets / "app_secret_key": lambda: random_token(48),
         personal_secrets / "db_password": random_token,
         personal_secrets / "minio_access_key": lambda: f"local-personal-{secrets.token_hex(6)}",
         personal_secrets / "minio_secret_key": random_token,
-        competency_secrets / "app_secret_key": lambda: random_token(48),
         competency_secrets / "db_password": random_token,
         competency_secrets / "minio_access_key": lambda: f"local-competency-{secrets.token_hex(6)}",
         competency_secrets / "minio_secret_key": random_token,
@@ -502,7 +500,6 @@ def prepare(args: argparse.Namespace) -> None:
         stable_file(path, factory)
     stable_file(personal_secrets / "sentry_dsn", str, allow_empty=True)
     stable_file(competency_secrets / "sentry_dsn", str, allow_empty=True)
-    stable_file(competency_secrets / "owner_init_password", lambda: owner_password)
     stable_file(auth_api_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
     stable_file(auth_api_secrets / "db_password", random_token, mode=0o444)
     stable_file(auth_api_secrets / "sentry_dsn", str, allow_empty=True, mode=0o444)
@@ -512,20 +509,6 @@ def prepare(args: argparse.Namespace) -> None:
         mode=0o444,
     )
 
-    owner_hash = personal_secrets / "owner_password_hash"
-    if owner_hash.is_symlink() or (owner_hash.exists() and not owner_hash.is_file()):
-        raise DevStateError(f"Local development value must be a regular file: {owner_hash}")
-    if not owner_hash.exists():
-        atomic_write(owner_hash, "")
-    else:
-        owner_hash.chmod(0o600)
-
-    _, auth_public_key = ensure_auth_key_pair(
-        competency_secrets,
-        label="Competency Trainer auth key pair",
-        algorithm="ED25519",
-        public_key_name="auth_public_key.pem",
-    )
     auth_api_private_key, auth_api_public_key = ensure_auth_key_pair(
         auth_api_secrets,
         label="Auth API auth key pair",
@@ -536,11 +519,7 @@ def prepare(args: argparse.Namespace) -> None:
     ensure_agent_ca(state_dir, competency_secrets)
     ensure_tls(state_dir)
 
-    credentials = (
-        f"Personal Workspace: owner / {owner_password}\n"
-        f"Competency Trainer: owner / {owner_password}\n"
-        f"Auth API: owner / {owner_password}\n"
-    )
+    credentials = f"Auth API: owner / {owner_password}\n"
     atomic_write(state_dir / "credentials", credentials)
 
     environment = {
@@ -549,23 +528,17 @@ def prepare(args: argparse.Namespace) -> None:
         "AUTH_API_BUILD_CONTEXT": str(auth_api),
         "FRONTEND_BUILD_CONTEXT": str(frontend),
         "NGINX_CERTS_DIR": str(state_dir / "tls"),
-        "COMPETENCY_AUTH_PUBLIC_KEY": auth_public_key.read_text(encoding="utf-8"),
         "COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE": str(platform_secrets / "minio_root_access_key"),
         "COMPOSE_MINIO_ROOT_SECRET_KEY_FILE": str(platform_secrets / "minio_root_secret_key"),
         "COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE": str(platform_secrets / "databasus_minio_access_key"),
         "COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE": str(platform_secrets / "databasus_minio_secret_key"),
-        "COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE": str(personal_secrets / "app_secret_key"),
         "COMPOSE_PERSONAL_WORKSPACE_DB_PASSWORD_FILE": str(personal_secrets / "db_password"),
         "COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE": str(personal_secrets / "minio_access_key"),
         "COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE": str(personal_secrets / "minio_secret_key"),
-        "COMPOSE_PERSONAL_WORKSPACE_OWNER_PASSWORD_HASH_FILE": str(owner_hash),
         "COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE": str(personal_secrets / "sentry_dsn"),
-        "COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE": str(competency_secrets / "app_secret_key"),
-        "COMPOSE_COMPETENCY_AUTH_PRIVATE_KEY_FILE": str(competency_secrets / "auth_private_key"),
         "COMPOSE_COMPETENCY_DB_PASSWORD_FILE": str(competency_secrets / "db_password"),
         "COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE": str(competency_secrets / "minio_access_key"),
         "COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE": str(competency_secrets / "minio_secret_key"),
-        "COMPOSE_COMPETENCY_OWNER_INIT_PASSWORD_FILE": str(competency_secrets / "owner_init_password"),
         "COMPOSE_COMPETENCY_SENTRY_DSN_FILE": str(competency_secrets / "sentry_dsn"),
         "COMPOSE_COMPETENCY_AGENT_ISSUING_CERTIFICATE_FILE": str(competency_secrets / "agent_issuing_certificate"),
         "COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE": str(competency_secrets / "agent_issuing_private_key"),

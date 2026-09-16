@@ -220,7 +220,11 @@ class EdgeSecurityContractTest(unittest.TestCase):
         for location, proxy_pass in expected_routes.items():
             self.assertIn(location, public_app)
             self.assertIn(proxy_pass, public_app)
-        self.assertIn("proxy_cookie_path /api/auth /api/competency/auth;", public_app)
+        self.assertNotIn("/api/personal-workspace/auth/login", public_app)
+        self.assertNotIn("/api/competency/auth/login", public_app)
+        self.assertNotIn("/api/competency/auth/refresh", public_app)
+        self.assertIn("location = /api/auth/login {", public_app)
+        self.assertIn("location = /api/auth/refresh {", public_app)
         self.assertRegex(public_app, r"location /api/\s*\{\s*return 404;")
         self.assertRegex(
             public_app,

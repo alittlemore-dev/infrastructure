@@ -16,11 +16,12 @@ class CertificateContractTest(unittest.TestCase):
         self.assertIn("SSL_CERT=/certs/current/fullchain.pem", platform_config)
         self.assertIn("SSL_KEY=/certs/current/privkey.pem", platform_config)
 
-    def test_authentication_public_and_private_keys_must_match(self) -> None:
+    def test_central_authentication_public_and_private_keys_must_match(self) -> None:
         script = (ROOT / "infra/scripts/compose_secrets.sh").read_text(encoding="utf-8")
-        self.assertIn('printf \'%b\' "$COMPETENCY_AUTH_PUBLIC_KEY"', script)
-        self.assertIn('openssl pkey -pubin -in "$auth_public_key"', script)
-        self.assertIn('cmp -s "$auth_declared_public_key" "$auth_private_public_key"', script)
+        self.assertIn('local auth_dir="$1/auth-api"', script)
+        self.assertIn('pkey -pubin -in "$auth_dir/auth_public_key"', script)
+        self.assertIn('pkey -in "$auth_dir/auth_private_key" -pubout', script)
+        self.assertNotIn("COMPETENCY_AUTH_PUBLIC_KEY", script)
 
     def test_certificate_sync_validates_before_atomic_activation(self) -> None:
         script = (ROOT / "infra/scripts/cert_sync.sh").read_text(encoding="utf-8")

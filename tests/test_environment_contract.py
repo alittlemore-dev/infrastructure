@@ -91,9 +91,11 @@ class EnvironmentContractTest(unittest.TestCase):
         competency_names = {
             entry["name"] for entry in documents["competency-trainer"]["secrets"]
         }
-        for native_name in ("APP_SECRET_KEY", "DB_PASSWORD", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "SENTRY_DSN"):
+        for native_name in ("DB_PASSWORD", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "SENTRY_DSN"):
             self.assertIn(native_name, personal_names)
             self.assertIn(native_name, competency_names)
+        self.assertNotIn("APP_SECRET_KEY", personal_names)
+        self.assertNotIn("APP_SECRET_KEY", competency_names)
         self.assertFalse(
             any(
                 entry["name"].startswith(("PERSONAL_WORKSPACE_", "COMPETENCY_"))
@@ -106,7 +108,6 @@ class EnvironmentContractTest(unittest.TestCase):
         }
         self.assertEqual(
             {
-                "AUTH_PRIVATE_KEY",
                 "AGENT_ACCESS_ISSUING_CERTIFICATE",
                 "AGENT_ACCESS_ISSUING_PRIVATE_KEY",
                 "AGENT_ACCESS_CERTIFICATE_CHAIN",

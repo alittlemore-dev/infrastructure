@@ -59,7 +59,6 @@ x-personal-workspace-backend: &personal-workspace-backend
     - ${PERSONAL_WORKSPACE_ENV_FILE:-./config/personal-workspace/production.env}
   environment: &personal-workspace-backend-environment
     APP_DOMAIN: ${APP_DOMAIN}
-    APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
     DB_HOST: personal-workspace-postgres
     DB_PASSWORD_FILE: /run/secrets/db_password
@@ -72,21 +71,16 @@ x-personal-workspace-backend: &personal-workspace-backend
     MINIO_REGION: ${MINIO_REGION}
     MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret_key
     MINIO_SECURE: "false"
-    OWNER_PASSWORD_HASH_FILE: /run/secrets/owner_password_hash
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     VALKEY_HOST: personal-workspace-valkey
     VALKEY_PORT: 6379
   secrets: &personal-workspace-backend-secrets
-    - source: personal_workspace_app_secret_key
-      target: app_secret_key
     - source: personal_workspace_db_password
       target: db_password
     - source: personal_workspace_minio_access_key
       target: minio_access_key
     - source: personal_workspace_minio_secret_key
       target: minio_secret_key
-    - source: personal_workspace_owner_password_hash
-      target: owner_password_hash
     - source: personal_workspace_sentry_dsn
       target: sentry_dsn
 
@@ -102,9 +96,7 @@ x-competency-backend: &competency-backend
     AGENT_ACCESS_ISSUING_CERTIFICATE_FILE: /run/secrets/agent_issuing_certificate
     AGENT_ACCESS_ISSUING_PRIVATE_KEY_FILE: /run/secrets/agent_issuing_private_key
     APP_DOMAIN: ${APP_DOMAIN}
-    APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
-    AUTH_PRIVATE_KEY_FILE: /run/secrets/auth_private_key
     DB_HOST: competency-postgres
     DB_PASSWORD_FILE: /run/secrets/db_password
     DB_PORT: 5432
@@ -116,23 +108,16 @@ x-competency-backend: &competency-backend
     MINIO_REGION: ${MINIO_REGION}
     MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret_key
     MINIO_SECURE: "false"
-    OWNER_INIT_PASSWORD_FILE: /run/secrets/owner_init_password
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     VALKEY_HOST: competency-valkey
     VALKEY_PORT: 6379
   secrets: &competency-backend-secrets
-    - source: competency_app_secret_key
-      target: app_secret_key
-    - source: competency_auth_private_key
-      target: auth_private_key
     - source: competency_db_password
       target: db_password
     - source: competency_minio_access_key
       target: minio_access_key
     - source: competency_minio_secret_key
       target: minio_secret_key
-    - source: competency_owner_init_password
-      target: owner_init_password
     - source: competency_sentry_dsn
       target: sentry_dsn
 
@@ -175,18 +160,12 @@ x-auth-api-healthcheck: &auth-api-healthcheck
   test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/auth/healthcheck/ready', timeout=3).close()"]
 
 x-competency-agent-secrets: &competency-agent-secrets
-  - source: competency_app_secret_key
-    target: app_secret_key
-  - source: competency_auth_private_key
-    target: auth_private_key
   - source: competency_db_password
     target: db_password
   - source: competency_minio_access_key
     target: minio_access_key
   - source: competency_minio_secret_key
     target: minio_secret_key
-  - source: competency_owner_init_password
-    target: owner_init_password
   - source: competency_sentry_dsn
     target: sentry_dsn
   - source: competency_agent_issuing_certificate
@@ -785,30 +764,20 @@ secrets:
     file: ${COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
   databasus_minio_secret_key:
     file: ${COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
-  personal_workspace_app_secret_key:
-    file: ${COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
   personal_workspace_db_password:
     file: ${COMPOSE_PERSONAL_WORKSPACE_DB_PASSWORD_FILE:?prepare Compose secrets first}
   personal_workspace_minio_access_key:
     file: ${COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
   personal_workspace_minio_secret_key:
     file: ${COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
-  personal_workspace_owner_password_hash:
-    file: ${COMPOSE_PERSONAL_WORKSPACE_OWNER_PASSWORD_HASH_FILE:?prepare Compose secrets first}
   personal_workspace_sentry_dsn:
     file: ${COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE:?prepare Compose secrets first}
-  competency_app_secret_key:
-    file: ${COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
-  competency_auth_private_key:
-    file: ${COMPOSE_COMPETENCY_AUTH_PRIVATE_KEY_FILE:?prepare Compose secrets first}
   competency_db_password:
     file: ${COMPOSE_COMPETENCY_DB_PASSWORD_FILE:?prepare Compose secrets first}
   competency_minio_access_key:
     file: ${COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
   competency_minio_secret_key:
     file: ${COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
-  competency_owner_init_password:
-    file: ${COMPOSE_COMPETENCY_OWNER_INIT_PASSWORD_FILE:?prepare Compose secrets first}
   competency_sentry_dsn:
     file: ${COMPOSE_COMPETENCY_SENTRY_DSN_FILE:?prepare Compose secrets first}
   competency_agent_issuing_certificate:

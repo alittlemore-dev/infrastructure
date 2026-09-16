@@ -130,8 +130,6 @@ validate_auth_api_pki() {
 validate_competency_pki() {
     local secrets_dir="$1"
     local competency_dir="${secrets_dir}/competency-trainer"
-    local auth_key="${competency_dir}/auth_private_key"
-    local auth_public_key="${secrets_dir}/.competency-auth-public.pem"
     local issuing_certificate="${competency_dir}/agent_issuing_certificate"
     local issuing_key="${competency_dir}/agent_issuing_private_key"
     local chain="${competency_dir}/agent_certificate_chain"
@@ -139,25 +137,12 @@ validate_competency_pki() {
     local chain_root="${secrets_dir}/.agent-chain-root.pem"
     local certificate_public_key="${secrets_dir}/.agent-certificate-public.der"
     local private_public_key="${secrets_dir}/.agent-private-public.der"
-    local auth_declared_public_key="${secrets_dir}/.auth-declared-public.der"
-    local auth_private_public_key="${secrets_dir}/.auth-private-public.der"
     local certificate_count
 
     command -v openssl >/dev/null 2>&1 || {
         echo "openssl is required to validate deployment PKI material." >&2
         return 1
     }
-    openssl pkey -in "$auth_key" -noout >/dev/null 2>&1 \
-        || fail_invalid_secret "AUTH_PRIVATE_KEY"
-    printf '%b' "$COMPETENCY_AUTH_PUBLIC_KEY" >"$auth_public_key"
-    openssl pkey -pubin -in "$auth_public_key" -outform DER >"$auth_declared_public_key" 2>/dev/null \
-        || fail_invalid_secret "AUTH_PUBLIC_KEY"
-    openssl pkey -in "$auth_key" -pubout -outform DER >"$auth_private_public_key" 2>/dev/null \
-        || fail_invalid_secret "AUTH_PRIVATE_KEY"
-    if ! cmp -s "$auth_declared_public_key" "$auth_private_public_key"; then
-        echo "AUTH_PUBLIC_KEY does not match AUTH_PRIVATE_KEY for competency-trainer." >&2
-        return 1
-    fi
     openssl x509 -in "$issuing_certificate" -noout >/dev/null 2>&1 \
         || fail_invalid_secret "AGENT_ACCESS_ISSUING_CERTIFICATE"
     openssl pkey -in "$issuing_key" -noout >/dev/null 2>&1 \
@@ -189,9 +174,6 @@ validate_competency_pki() {
         return 1
     fi
     rm -f \
-        "$auth_public_key" \
-        "$auth_declared_public_key" \
-        "$auth_private_public_key" \
         "$chain_issuing" \
         "$chain_root" \
         "$certificate_public_key" \

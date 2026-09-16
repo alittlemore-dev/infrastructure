@@ -10,8 +10,6 @@ auth_api_dir="${AUTH_API_DIR:-${repo_dir}/../auth-api}"
 frontend_dir="${FRONTEND_DIR:-${repo_dir}/../frontend}"
 platform_environment="${repo_dir}/config/platform/development.env"
 state_environment="${state_dir}/compose.env"
-owner_password_file="${state_dir}/owner-password"
-owner_hash_file="${state_dir}/secrets/personal-workspace/owner_password_hash"
 ca_certificate="${state_dir}/tls/local-development-ca.cert.pem"
 readonly wait_timeout_seconds=180
 
@@ -26,36 +24,6 @@ compose() {
         --file "${repo_dir}/docker-compose.yml" \
         --file "${repo_dir}/docker-compose.dev.yml" \
         "$@"
-}
-
-prepare_owner_password_hash() {
-    local owner_password
-    local password_hash
-    local temporary_hash
-
-    if [ -s "$owner_hash_file" ]; then
-        return
-    fi
-    owner_password="$(cat "$owner_password_file")"
-    export DEV_OWNER_PASSWORD="$owner_password"
-    password_hash="$(
-        docker run \
-            --rm \
-            --pull never \
-            --env DEV_OWNER_PASSWORD \
-            --entrypoint python \
-            alittlemore-dev/personal-workspace:local \
-            -c 'import os; from argon2 import PasswordHasher; print(PasswordHasher().hash(os.environ["DEV_OWNER_PASSWORD"]))'
-    )"
-    unset DEV_OWNER_PASSWORD
-    if [[ ! "$password_hash" =~ ^\$argon2id\$ ]]; then
-        echo "The Personal Workspace image did not generate a valid Argon2id owner password hash." >&2
-        exit 1
-    fi
-    temporary_hash="$(mktemp "${owner_hash_file}.tmp.XXXXXX")"
-    printf '%s\n' "$password_hash" >"$temporary_hash"
-    chmod 600 "$temporary_hash"
-    mv -f "$temporary_hash" "$owner_hash_file"
 }
 
 prepare_minio_volume_permissions() {
@@ -153,7 +121,6 @@ compose build \
     frontend-blue \
     minio \
     nginx
-prepare_owner_password_hash
 prepare_minio_volume_permissions
 compose_up_wait missing \
     --remove-orphans \

@@ -8,10 +8,7 @@ limit_req_zone $binary_remote_addr zone=auth_api_per_ip:20m rate=120r/m;
 limit_req_zone $binary_remote_addr zone=auth_login_per_ip:10m rate=5r/m;
 limit_req_zone $binary_remote_addr zone=auth_refresh_per_ip:10m rate=30r/m;
 limit_req_zone $binary_remote_addr zone=personal_api_per_ip:20m rate=120r/m;
-limit_req_zone $binary_remote_addr zone=personal_login_per_ip:10m rate=5r/m;
 limit_req_zone $binary_remote_addr zone=competency_api_per_ip:20m rate=120r/m;
-limit_req_zone $binary_remote_addr zone=competency_login_per_ip:10m rate=5r/m;
-limit_req_zone $binary_remote_addr zone=competency_auth_refresh_per_ip:10m rate=30r/m;
 limit_req_zone $binary_remote_addr zone=competency_contact_per_ip:10m rate=3r/m;
 limit_req_zone $binary_remote_addr zone=competency_matrix_suggestion_per_ip:10m rate=10r/m;
 limit_req_zone $binary_remote_addr zone=competency_heavy_read_per_ip:10m rate=30r/m;
@@ -160,12 +157,6 @@ server {
         proxy_pass http://personal_workspace_backend/api/docs;
     }
 
-    location = /api/personal-workspace/auth/login {
-        limit_req zone=personal_login_per_ip burst=5 nodelay;
-        limit_req zone=personal_api_per_ip burst=60 nodelay;
-        proxy_pass http://personal_workspace_backend/api/auth/login;
-    }
-
     location ^~ /api/personal-workspace/ {
         limit_req zone=personal_api_per_ip burst=120 nodelay;
         proxy_redirect ~^https?://[^/]+/api/(.*)$ $scheme://$host/api/personal-workspace/$1;
@@ -208,18 +199,6 @@ server {
         proxy_pass http://auth_api_backend;
     }
 
-    location = /api/competency/auth/login {
-        limit_req zone=competency_login_per_ip burst=5 nodelay;
-        proxy_cookie_path /api/auth /api/competency/auth;
-        proxy_pass http://competency_backend/api/auth/login;
-    }
-
-    location = /api/competency/auth/refresh {
-        limit_req zone=competency_auth_refresh_per_ip burst=30 nodelay;
-        proxy_cookie_path /api/auth /api/competency/auth;
-        proxy_pass http://competency_backend/api/auth/refresh;
-    }
-
     location = /api/competency/contacts {
         limit_req zone=competency_contact_per_ip burst=3 nodelay;
         proxy_pass http://competency_backend/api/contacts;
@@ -259,7 +238,6 @@ server {
 
     location ^~ /api/competency/ {
         limit_req zone=competency_api_per_ip burst=120 nodelay;
-        proxy_cookie_path /api/auth /api/competency/auth;
         proxy_redirect ~^https?://[^/]+/api/(.*)$ $scheme://$host/api/competency/$1;
         proxy_redirect ~^/api/(.*)$ /api/competency/$1;
         proxy_pass http://competency_backend/api/;

@@ -38,7 +38,7 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
             fake_sops.write_text(
                 "#!/usr/bin/env python3\n"
                 "import json, os\n"
-                "print(json.dumps({'AUTH_PRIVATE_KEY': os.environ['TEST_ESCAPED_PEM']}))\n",
+                "print(json.dumps({'AGENT_ACCESS_ISSUING_PRIVATE_KEY': os.environ['TEST_ESCAPED_PEM']}))\n",
                 encoding="utf-8",
             )
             fake_sops.chmod(0o755)
@@ -52,9 +52,9 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
                                 "path": "secrets/competency-trainer/production.sops.yaml",
                                 "secrets": [
                                     {
-                                        "name": "AUTH_PRIVATE_KEY",
-                                        "target": "competency-trainer/auth_private_key",
-                                        "composeVariable": "COMPOSE_COMPETENCY_AUTH_PRIVATE_KEY_FILE",
+                                        "name": "AGENT_ACCESS_ISSUING_PRIVATE_KEY",
+                                        "target": "competency-trainer/agent_issuing_private_key",
+                                        "composeVariable": "COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE",
                                         "allowEmpty": False,
                                         "encoding": "pem",
                                     }
@@ -95,7 +95,7 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
             )
 
             self.assertEqual(0, result.returncode, result.stderr)
-            materialized_key = output_dir / "competency-trainer/auth_private_key"
+            materialized_key = output_dir / "competency-trainer/agent_issuing_private_key"
             self.assertNotIn("\\n", materialized_key.read_text(encoding="utf-8"))
             validation = subprocess.run(
                 ["openssl", "pkey", "-in", str(materialized_key), "-noout"],
