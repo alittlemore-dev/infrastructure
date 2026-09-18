@@ -59,6 +59,7 @@ x-personal-workspace-backend: &personal-workspace-backend
     - ${PERSONAL_WORKSPACE_ENV_FILE:-./config/personal-workspace/production.env}
   environment: &personal-workspace-backend-environment
     APP_DOMAIN: ${APP_DOMAIN}
+    APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
     AUTH_VERIFY_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/verify
     DB_HOST: personal-workspace-postgres
@@ -76,6 +77,8 @@ x-personal-workspace-backend: &personal-workspace-backend
     VALKEY_HOST: personal-workspace-valkey
     VALKEY_PORT: 6379
   secrets: &personal-workspace-backend-secrets
+    - source: personal_workspace_app_secret_key
+      target: app_secret_key
     - source: personal_workspace_db_password
       target: db_password
     - source: personal_workspace_minio_access_key
@@ -97,6 +100,7 @@ x-competency-backend: &competency-backend
     AGENT_ACCESS_ISSUING_CERTIFICATE_FILE: /run/secrets/agent_issuing_certificate
     AGENT_ACCESS_ISSUING_PRIVATE_KEY_FILE: /run/secrets/agent_issuing_private_key
     APP_DOMAIN: ${APP_DOMAIN}
+    APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
     AUTH_VERIFY_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/verify
     DB_HOST: competency-postgres
@@ -114,6 +118,8 @@ x-competency-backend: &competency-backend
     VALKEY_HOST: competency-valkey
     VALKEY_PORT: 6379
   secrets: &competency-backend-secrets
+    - source: competency_app_secret_key
+      target: app_secret_key
     - source: competency_db_password
       target: db_password
     - source: competency_minio_access_key
@@ -159,6 +165,8 @@ x-auth-api-healthcheck: &auth-api-healthcheck
   test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/auth/healthcheck/ready', timeout=3).close()"]
 
 x-competency-agent-secrets: &competency-agent-secrets
+  - source: competency_app_secret_key
+    target: app_secret_key
   - source: competency_db_password
     target: db_password
   - source: competency_minio_access_key
@@ -789,6 +797,8 @@ secrets:
     file: ${COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
   databasus_minio_secret_key:
     file: ${COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
+  personal_workspace_app_secret_key:
+    file: ${COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
   personal_workspace_db_password:
     file: ${COMPOSE_PERSONAL_WORKSPACE_DB_PASSWORD_FILE:?prepare Compose secrets first}
   personal_workspace_minio_access_key:
@@ -797,6 +807,8 @@ secrets:
     file: ${COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
   personal_workspace_sentry_dsn:
     file: ${COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE:?prepare Compose secrets first}
+  competency_app_secret_key:
+    file: ${COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
   competency_db_password:
     file: ${COMPOSE_COMPETENCY_DB_PASSWORD_FILE:?prepare Compose secrets first}
   competency_minio_access_key:

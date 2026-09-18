@@ -503,7 +503,9 @@ def prepare(args: argparse.Namespace) -> None:
     }
     for path, factory in values.items():
         stable_file(path, factory)
+    stable_file(personal_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
     stable_file(personal_secrets / "sentry_dsn", str, allow_empty=True)
+    stable_file(competency_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
     stable_file(competency_secrets / "sentry_dsn", str, allow_empty=True)
     stable_file(auth_api_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
     stable_file(auth_api_secrets / "db_password", random_token, mode=0o444)
@@ -528,10 +530,12 @@ def prepare(args: argparse.Namespace) -> None:
         "COMPOSE_MINIO_ROOT_SECRET_KEY_FILE": str(platform_secrets / "minio_root_secret_key"),
         "COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE": str(platform_secrets / "databasus_minio_access_key"),
         "COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE": str(platform_secrets / "databasus_minio_secret_key"),
+        "COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE": str(personal_secrets / "app_secret_key"),
         "COMPOSE_PERSONAL_WORKSPACE_DB_PASSWORD_FILE": str(personal_secrets / "db_password"),
         "COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE": str(personal_secrets / "minio_access_key"),
         "COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE": str(personal_secrets / "minio_secret_key"),
         "COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE": str(personal_secrets / "sentry_dsn"),
+        "COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE": str(competency_secrets / "app_secret_key"),
         "COMPOSE_COMPETENCY_DB_PASSWORD_FILE": str(competency_secrets / "db_password"),
         "COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE": str(competency_secrets / "minio_access_key"),
         "COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE": str(competency_secrets / "minio_secret_key"),

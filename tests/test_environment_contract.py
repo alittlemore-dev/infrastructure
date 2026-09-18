@@ -94,8 +94,6 @@ class EnvironmentContractTest(unittest.TestCase):
         for native_name in ("DB_PASSWORD", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "SENTRY_DSN"):
             self.assertIn(native_name, personal_names)
             self.assertIn(native_name, competency_names)
-        self.assertNotIn("APP_SECRET_KEY", personal_names)
-        self.assertNotIn("APP_SECRET_KEY", competency_names)
         self.assertFalse(
             any(
                 entry["name"].startswith(("PERSONAL_WORKSPACE_", "COMPETENCY_"))
