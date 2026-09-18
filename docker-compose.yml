@@ -60,6 +60,7 @@ x-personal-workspace-backend: &personal-workspace-backend
   environment: &personal-workspace-backend-environment
     APP_DOMAIN: ${APP_DOMAIN}
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+    AUTH_VERIFY_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/verify
     DB_HOST: personal-workspace-postgres
     DB_PASSWORD_FILE: /run/secrets/db_password
     DB_PORT: 5432
@@ -97,6 +98,7 @@ x-competency-backend: &competency-backend
     AGENT_ACCESS_ISSUING_PRIVATE_KEY_FILE: /run/secrets/agent_issuing_private_key
     APP_DOMAIN: ${APP_DOMAIN}
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+    AUTH_VERIFY_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/verify
     DB_HOST: competency-postgres
     DB_PASSWORD_FILE: /run/secrets/db_password
     DB_PORT: 5432
@@ -187,6 +189,9 @@ services:
         condition: service_completed_successfully
       personal-workspace-valkey:
         condition: service_healthy
+    networks:
+      - personal-workspace-network
+      - personal-auth-verification-network
     healthcheck: *backend-healthcheck
 
   personal-workspace-backend-green:
@@ -200,6 +205,9 @@ services:
         condition: service_completed_successfully
       personal-workspace-valkey:
         condition: service_healthy
+    networks:
+      - personal-workspace-network
+      - personal-auth-verification-network
     healthcheck: *backend-healthcheck
 
   personal-workspace-backend-init:
@@ -266,6 +274,9 @@ services:
         condition: service_completed_successfully
       competency-valkey:
         condition: service_healthy
+    networks:
+      - competency-network
+      - competency-auth-verification-network
     healthcheck: *backend-healthcheck
 
   competency-backend-green:
@@ -280,6 +291,9 @@ services:
         condition: service_completed_successfully
       competency-valkey:
         condition: service_healthy
+    networks:
+      - competency-network
+      - competency-auth-verification-network
     healthcheck: *backend-healthcheck
 
   competency-backend-init:
@@ -343,6 +357,10 @@ services:
         condition: service_healthy
       auth-api-valkey:
         condition: service_healthy
+    networks:
+      - auth-api-network
+      - personal-auth-verification-network
+      - competency-auth-verification-network
     healthcheck: *auth-api-healthcheck
 
   auth-api-backend-green:
@@ -354,6 +372,10 @@ services:
         condition: service_healthy
       auth-api-valkey:
         condition: service_healthy
+    networks:
+      - auth-api-network
+      - personal-auth-verification-network
+      - competency-auth-verification-network
     healthcheck: *auth-api-healthcheck
 
   auth-api-backend-init:
@@ -736,6 +758,12 @@ services:
 networks:
   auth-api-network:
     driver: bridge
+  personal-auth-verification-network:
+    driver: bridge
+    internal: true
+  competency-auth-verification-network:
+    driver: bridge
+    internal: true
   personal-workspace-network:
     driver: bridge
   competency-network:
