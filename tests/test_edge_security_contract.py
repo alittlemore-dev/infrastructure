@@ -358,6 +358,7 @@ class EdgeSecurityContractTest(unittest.TestCase):
         activation = (ROOT / "infra/scripts/deploy_activate_payload.sh").read_text(encoding="utf-8")
         sync = (ROOT / "infra/scripts/deploy_sync_payload.sh").read_text(encoding="utf-8")
         cleanup = (ROOT / "infra/scripts/deploy_cleanup_payload.sh").read_text(encoding="utf-8")
+        registry_login = "bash infra/scripts/deploy_registry_login.sh"
         self.assertIn("cancel-in-progress: false", workflow)
         self.assertIn('[[ "$REMOTE_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]', configure)
         self.assertIn('[[ "$REMOTE_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]', configure)
@@ -398,6 +399,16 @@ class EdgeSecurityContractTest(unittest.TestCase):
         self.assertIn("timeout 10m rsync", sync)
         self.assertIn('[[ "$stale_name" =~ ^incoming-[0-9]+-[0-9]+$ ]]', activation)
         self.assertIn("if: always()", workflow)
+        self.assertIn(registry_login, workflow)
+        self.assertIn("REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}", workflow)
+        self.assertLess(
+            workflow.index(registry_login),
+            workflow.index("bash infra/scripts/deploy_sync_payload.sh"),
+        )
+        self.assertIn('export DOCKER_CONFIG="$docker_config_path"', activation)
+        self.assertIn("cleanup_registry_auth", activation)
+        self.assertIn("registry-auth-*", activation)
+        self.assertIn('registry_auth_path="$state_path/registry-auth-', cleanup)
         self.assertIn("flock -n 9", cleanup)
         self.assertIn('rm -rf -- "$stage_path"', cleanup)
 

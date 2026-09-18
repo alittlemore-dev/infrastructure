@@ -41,6 +41,12 @@ jobs:
       - name: Verify remote deploy root
         run: bash infra/scripts/deploy_verify_remote_root.sh
 
+      - name: Authenticate remote container registry
+        env:
+          REGISTRY_USERNAME: ${{ vars.REGISTRY_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: bash infra/scripts/deploy_registry_login.sh
+
       - name: Sync runtime files to server
         run: bash infra/scripts/deploy_sync_payload.sh
 

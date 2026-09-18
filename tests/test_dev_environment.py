@@ -530,6 +530,7 @@ class DevOrchestrationTest(unittest.TestCase):
             environment.update(
                 {
                     "PATH": f"{binary_dir}:{environment['PATH']}",
+                    "ALITTLEMORE_DEV_PLATFORM": "Darwin",
                     "ALITTLEMORE_DEV_STATE_DIR": str(state_dir),
                     "PERSONAL_WORKSPACE_DIR": str(personal_workspace),
                     "COMPETENCY_TRAINER_DIR": str(competency_trainer),

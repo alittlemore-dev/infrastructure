@@ -42,10 +42,19 @@ pulled once, and all services in that run start from that locally resolved tag w
 pull.
 
 Create a protected GitHub Environment named `production`, restrict it to `main`, and require a
-reviewer. Configure these deploy connection values:
+reviewer. Configure these deploy connection and container-registry values:
 
-- Variables: `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_PATH`, `SSH_HOST_KEY_FINGERPRINT`
-- Secret: `SSH_PRIVATE_KEY`
+- Variables: `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_PATH`, `SSH_HOST_KEY_FINGERPRINT`,
+  `REGISTRY_USERNAME`
+- Secrets: `SSH_PRIVATE_KEY`, `REGISTRY_TOKEN`
+
+`REGISTRY_TOKEN` must be a registry token for `REGISTRY_USERNAME` with read access to the four
+application images. The deploy workflow removes the secret from the SSH process environment and
+sends it only to `docker login --password-stdin` over the pinned connection. Login uses an
+owner-only, per-deploy Docker configuration under `.deploy-state`. Activation removes it on exit,
+the always-run cleanup step is a fallback even when the runtime lock is busy, and the next deploy
+removes any safely validated stale credential directories. The credential is never added to the
+deploy payload, the deploy user's regular Docker configuration, or runtime configuration.
 
 `SSH_HOST_KEY_FINGERPRINT` must be the pinned `SHA256:...` fingerprint of the server host key. The
 workflow obtains the presented keys with `ssh-keyscan`, retains only key lines whose fingerprint
@@ -155,13 +164,15 @@ domain, the registry prefix, certificate lineage, and the SOPS identity path—a
 well. Review open-config changes through normal Git diffs.
 
 `IMAGE_REGISTRY` contains only the registry/repository prefix and must not end in `/`. Registry
-credentials do not belong in configuration files; authenticate the deploy user's Docker client on
-the server using the registry-specific login mechanism.
+credentials do not belong in configuration files. The deploy workflow authenticates the deploy
+user's Docker client from the protected `REGISTRY_USERNAME` variable and `REGISTRY_TOKEN` secret
+before activating a release.
 
-The protected GitHub Environment needs only deployment transport values:
+The protected GitHub Environment needs only deployment transport and registry access values:
 
-- Variables: `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_PATH`, `SSH_HOST_KEY_FINGERPRINT`
-- Secret: `SSH_PRIVATE_KEY`
+- Variables: `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_PATH`, `SSH_HOST_KEY_FINGERPRINT`,
+  `REGISTRY_USERNAME`
+- Secrets: `SSH_PRIVATE_KEY`, `REGISTRY_TOKEN`
 
 Do not remove plaintext bootstrap sources until the encrypted documents have been recovery-tested,
 committed, and successfully deployed. Keep those sources outside the repository with owner-only
