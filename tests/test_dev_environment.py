@@ -74,7 +74,7 @@ def make_executable(path: Path, source: str) -> None:
 
 
 class DevStateTest(unittest.TestCase):
-    def test_first_run_creates_private_stable_credentials_and_valid_pki(self) -> None:
+    def test_first_run_creates_private_stable_secrets_and_valid_pki(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             state_dir = root / "dev-state"
@@ -88,7 +88,6 @@ class DevStateTest(unittest.TestCase):
             self.assertEqual(0, first.returncode, first.stderr)
 
             private_stable_files = (
-                state_dir / "credentials",
                 state_dir / "secrets/platform/minio_root_secret_key",
                 state_dir / "secrets/competency-trainer/agent_issuing_private_key",
                 state_dir / "tls/local-development-ca.key.pem",
@@ -98,17 +97,24 @@ class DevStateTest(unittest.TestCase):
                 state_dir / "secrets/auth-api/auth_private_key",
                 state_dir / "secrets/auth-api/auth_public_key",
                 state_dir / "secrets/auth-api/db_password",
-                state_dir / "secrets/auth-api/owner_init_password",
                 state_dir / "secrets/auth-api/sentry_dsn",
             )
             stable_files = private_stable_files + auth_api_compose_files
             initial_contents = {path: path.read_bytes() for path in stable_files}
+            legacy_owner_files = (
+                state_dir / "credentials",
+                state_dir / "owner-password",
+                state_dir / "secrets/auth-api/owner_init_password",
+            )
+            for path in legacy_owner_files:
+                path.write_text("obsolete-test-value", encoding="utf-8")
 
             second = run_state_preparer(
                 state_dir, personal_workspace, competency_trainer, auth_api, frontend
             )
             self.assertEqual(0, second.returncode, second.stderr)
             self.assertEqual(initial_contents, {path: path.read_bytes() for path in stable_files})
+            self.assertFalse(any(path.exists() for path in legacy_owner_files))
 
             for directory in (
                 state_dir,
@@ -174,10 +180,6 @@ class DevStateTest(unittest.TestCase):
                 auth_public_key.read_text(encoding="utf-8"),
                 derived_auth_public_key.stdout,
             )
-
-            credentials = (state_dir / "credentials").read_text(encoding="utf-8")
-            self.assertIn("Auth API: owner / ", credentials)
-            self.assertNotIn("production", credentials.lower())
 
     def test_state_preparer_rejects_mismatched_existing_auth_api_keys(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -397,7 +399,6 @@ class DevComposeTest(unittest.TestCase):
                 "auth_private_key",
                 "auth_public_key",
                 "db_password",
-                "owner_init_password",
                 "sentry_dsn",
             },
             {secret["target"] for secret in auth_backend["secrets"]},
@@ -577,7 +578,7 @@ class DevOrchestrationTest(unittest.TestCase):
             ):
                 self.assertIn(url, curl_calls)
 
-            self.assertIn("Auth API: owner / ", result.stdout)
+            self.assertNotIn("Auth API: owner / ", result.stdout)
 
 
 if __name__ == "__main__":

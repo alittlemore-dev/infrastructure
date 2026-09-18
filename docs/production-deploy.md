@@ -379,7 +379,6 @@ rotation:
 | Any MinIO access or secret key | Use a dedicated rotation procedure. Ordinary startup rejects changes after the first successful bootstrap by comparing stored fingerprints. Databasus' saved S3 destination must be updated when its identity rotates. |
 | Agent issuing key or certificate | Replace the issuing private key, issuing certificate, and two-certificate issuing/root chain as one validated set. |
 | Auth API `AUTH_PRIVATE_KEY` | Update the matching Auth API public key and account for invalidated tokens. |
-| Auth API `OWNER_INIT_PASSWORD` | Treat it as initialization input; changing it does not automatically update an existing account. |
 
 ### Instructions for AI agents
 

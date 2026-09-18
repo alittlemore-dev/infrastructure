@@ -155,4 +155,3 @@ printf '  Personal Workspace API: https://alittlemore.localhost/api/personal-wor
 printf '  Competency Trainer API: https://alittlemore.localhost/api/competency/\n'
 printf '  Auth API: https://alittlemore.localhost/api/auth/\n'
 printf '  MinIO API: https://s3.localhost\n\n'
-cat "${state_dir}/credentials"

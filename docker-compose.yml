@@ -139,7 +139,6 @@ x-auth-api-backend: &auth-api-backend
     DB_HOST: auth-api-postgres
     DB_PASSWORD_FILE: /run/secrets/db_password
     DB_PORT: 5432
-    OWNER_INIT_PASSWORD_FILE: /run/secrets/owner_init_password
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     VALKEY_HOST: auth-api-valkey
     VALKEY_PORT: 6379
@@ -152,8 +151,6 @@ x-auth-api-backend: &auth-api-backend
       target: auth_private_key
     - source: auth_api_db_password
       target: db_password
-    - source: auth_api_owner_init_password
-      target: owner_init_password
     - source: auth_api_sentry_dsn
       target: sentry_dsn
 
@@ -825,9 +822,6 @@ secrets:
 
   auth_api_db_password:
     file: ${COMPOSE_AUTH_API_DB_PASSWORD_FILE:?prepare Compose secrets first}
-
-  auth_api_owner_init_password:
-    file: ${COMPOSE_AUTH_API_OWNER_INIT_PASSWORD_FILE:?prepare Compose secrets first}
 
   auth_api_sentry_dsn:
     file: ${COMPOSE_AUTH_API_SENTRY_DSN_FILE:?prepare Compose secrets first}

@@ -482,8 +482,13 @@ def prepare(args: argparse.Namespace) -> None:
     for directory in (platform_secrets, personal_secrets, competency_secrets, auth_api_secrets):
         ensure_directory(directory)
 
-    owner_password_file = state_dir / "owner-password"
-    owner_password = stable_file(owner_password_file, lambda: random_token(18))
+    for legacy_owner_file in (
+        state_dir / "credentials",
+        state_dir / "owner-password",
+        auth_api_secrets / "owner_init_password",
+    ):
+        legacy_owner_file.unlink(missing_ok=True)
+
     values = {
         platform_secrets / "minio_root_access_key": lambda: f"local-root-{secrets.token_hex(6)}",
         platform_secrets / "minio_root_secret_key": random_token,
@@ -503,12 +508,6 @@ def prepare(args: argparse.Namespace) -> None:
     stable_file(auth_api_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
     stable_file(auth_api_secrets / "db_password", random_token, mode=0o444)
     stable_file(auth_api_secrets / "sentry_dsn", str, allow_empty=True, mode=0o444)
-    stable_file(
-        auth_api_secrets / "owner_init_password",
-        lambda: owner_password,
-        mode=0o444,
-    )
-
     auth_api_private_key, auth_api_public_key = ensure_auth_key_pair(
         auth_api_secrets,
         label="Auth API auth key pair",
@@ -518,9 +517,6 @@ def prepare(args: argparse.Namespace) -> None:
     )
     ensure_agent_ca(state_dir, competency_secrets)
     ensure_tls(state_dir)
-
-    credentials = f"Auth API: owner / {owner_password}\n"
-    atomic_write(state_dir / "credentials", credentials)
 
     environment = {
         "PERSONAL_WORKSPACE_BUILD_CONTEXT": str(personal_workspace),
@@ -547,7 +543,6 @@ def prepare(args: argparse.Namespace) -> None:
         "COMPOSE_AUTH_API_AUTH_PRIVATE_KEY_FILE": str(auth_api_private_key),
         "COMPOSE_AUTH_API_AUTH_PUBLIC_KEY_FILE": str(auth_api_public_key),
         "COMPOSE_AUTH_API_DB_PASSWORD_FILE": str(auth_api_secrets / "db_password"),
-        "COMPOSE_AUTH_API_OWNER_INIT_PASSWORD_FILE": str(auth_api_secrets / "owner_init_password"),
         "COMPOSE_AUTH_API_SENTRY_DSN_FILE": str(auth_api_secrets / "sentry_dsn"),
     }
     compose_environment = "".join(

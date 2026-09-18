@@ -35,7 +35,6 @@ make dev
 
 The shared edge and frontend are available at `https://alittlemore.localhost`. Personal Workspace
 APIs start at `/api/personal-workspace/`, and Competency Trainer APIs at `/api/competency/`; Auth API at `/api/auth/`.
-Generated logins are stored in `.dev-state/credentials`.
 
 ## Production deployment
 

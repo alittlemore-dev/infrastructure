@@ -36,7 +36,6 @@ make dev
 
 Общие edge и frontend доступны по адресу `https://alittlemore.localhost`. API Personal Workspace
 начинаются с `/api/personal-workspace/`, а API Competency Trainer — с `/api/competency/`; Auth API — с `/api/auth/`.
-Сгенерированные логины хранятся в `.dev-state/credentials`.
 
 ## Production-запуск
 
