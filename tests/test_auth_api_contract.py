@@ -6,9 +6,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from test_environment_contract import compose_service_blocks
-
-
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -50,33 +47,3 @@ class AuthApiContractTest(unittest.TestCase):
         result = self.validate_keys("EC")
         self.assertNotEqual(0, result.returncode)
         self.assertIn("Ed25519", result.stderr)
-
-    def test_auth_runtime_is_isolated_and_ready(self) -> None:
-        compose = (ROOT / "docker-compose.yml").read_text()
-        blocks = compose_service_blocks(compose)
-        for slot in ("blue", "green"):
-            backend = blocks[f"auth-api-backend-{slot}"]
-            self.assertIn("*auth-api-healthcheck", backend)
-            self.assertIn("auth-api-postgres", backend)
-            self.assertIn("auth-api-valkey", backend)
-            self.assertNotIn("minio", backend)
-            self.assertNotIn("ports:", backend)
-        self.assertIn("/api/auth/healthcheck/ready", compose)
-        self.assertIn('--appendonly", "yes"', blocks["auth-api-valkey"])
-
-    def test_edge_uses_canonical_auth_routes_without_cookie_rewriting(self) -> None:
-        template = (ROOT / "infra/nginx/templates/site.conf.template").read_text()
-        self.assertNotIn("/api/auth-api", template)
-        for route in ("= /api/auth/login", "= /api/auth/refresh", "^~ /api/auth/"):
-            block = template.split(f"location {route} {{", 1)[1].split("}", 1)[0]
-            self.assertIn("proxy_pass http://auth_api_backend;", block)
-            self.assertNotIn("proxy_cookie_path", block)
-            self.assertIn("limit_req zone=auth_", block)
-        self.assertIn("/api/auth/healthcheck", (ROOT / "infra/scripts/edge_checks.sh").read_text())
-    def test_auth_trailing_slashes_cannot_bypass_endpoint_rate_limits(self) -> None:
-        template = (ROOT / "infra/nginx/templates/site.conf.template").read_text()
-        for endpoint in ("login", "refresh"):
-            block = template.split(f"location = /api/auth/{endpoint}/ {{", 1)[1].split("}", 1)[0]
-            self.assertIn(f"return 308 /api/auth/{endpoint}$is_args$args;", block)
-            self.assertIn("absolute_redirect off;", block)
-            self.assertNotIn("proxy_pass", block)

@@ -39,9 +39,10 @@ make dev
 
 ## Production-запуск
 
-Подготовьте production-конфигурацию, age identity, зашифрованные секреты, DNS и доступ к registry
-по инструкции [Production deployment](../docs/production-deploy.md). При первом deployment
-выпустите общий сертификат и запустите стек:
+Подготовьте production-конфигурацию, age identity, зашифрованные секреты и DNS, а четыре
+application-пакета в GHCR сделайте публичными по инструкции
+[Production deployment](../docs/production-deploy.md). При первом deployment выпустите общий
+сертификат и запустите стек:
 
 ```bash
 make certbot-issue

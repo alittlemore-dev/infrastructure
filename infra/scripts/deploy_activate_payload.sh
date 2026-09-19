@@ -5,7 +5,6 @@ activate_remote_payload() {
     local deploy_path="$1"
     local stage_name="$2"
     local issue_certificates="$3"
-    local docker_config_path="$4"
     local sentinel
     local state_path
     local releases_path
@@ -14,8 +13,6 @@ activate_remote_payload() {
     local lock_file
     local stale_stage
     local stale_name
-    local stale_registry_auth
-    local stale_registry_name
     local release_name
     local release_path
     local current_link
@@ -59,16 +56,6 @@ activate_remote_payload() {
     [ "$(readlink -f "$state_path")" = "$state_path" ]
     [ "$(stat -c '%U' "$state_path")" = "$(id -un)" ]
     [ "$(stat -c '%a' "$state_path")" = "700" ]
-    [ "$docker_config_path" = "$state_path/registry-auth-${stage_name#incoming-}" ]
-    [ -d "$docker_config_path" ]
-    [ ! -L "$docker_config_path" ]
-    [ "$(readlink -f "$docker_config_path")" = "$docker_config_path" ]
-    [ "$(stat -c '%U' "$docker_config_path")" = "$(id -un)" ]
-    [ "$(stat -c '%a' "$docker_config_path")" = "700" ]
-    [ -f "$docker_config_path/config.json" ]
-    [ ! -L "$docker_config_path/config.json" ]
-    [ "$(stat -c '%U' "$docker_config_path/config.json")" = "$(id -un)" ]
-    [ "$(stat -c '%a' "$docker_config_path/config.json")" = "600" ]
     releases_path="$state_path/releases"
     [ -d "$releases_path" ]
     [ ! -L "$releases_path" ]
@@ -102,17 +89,22 @@ activate_remote_payload() {
     fi
     export ALITTLEMORE_RUNTIME_LOCK_HELD=1
 
-    while IFS= read -r stale_registry_auth; do
-        [ "$stale_registry_auth" = "$docker_config_path" ] && continue
-        stale_registry_name="$(basename "$stale_registry_auth")"
-        [[ "$stale_registry_name" =~ ^registry-auth-[0-9]+-[0-9]+$ ]]
-        [ -d "$stale_registry_auth" ]
-        [ ! -L "$stale_registry_auth" ]
-        [ "$(readlink -f "$stale_registry_auth")" = "$stale_registry_auth" ]
-        [ "$(stat -c '%U' "$stale_registry_auth")" = "$(id -un)" ]
-        [ "$(stat -c '%a' "$stale_registry_auth")" = "700" ]
-        rm -rf -- "$stale_registry_auth"
-    done < <(find "$state_path" -mindepth 1 -maxdepth 1 -name 'registry-auth-*' -print)
+    cleanup_legacy_registry_auth() {
+        local legacy_path
+        local legacy_name
+
+        while IFS= read -r legacy_path; do
+            legacy_name="$(basename "$legacy_path")"
+            [[ "$legacy_name" =~ ^registry-auth-[0-9]+-[0-9]+$ ]]
+            [ -d "$legacy_path" ]
+            [ ! -L "$legacy_path" ]
+            [ "$(readlink -f "$legacy_path")" = "$legacy_path" ]
+            [ "$(stat -c '%U' "$legacy_path")" = "$(id -un)" ]
+            [ "$(stat -c '%a' "$legacy_path")" = "700" ]
+            rm -rf -- "$legacy_path"
+        done < <(find "$state_path" -mindepth 1 -maxdepth 1 -name 'registry-auth-*' -print)
+    }
+    cleanup_legacy_registry_auth
 
     while IFS= read -r stale_stage; do
         [ "$stale_stage" = "$stage_path" ] && continue
@@ -284,25 +276,11 @@ activate_remote_payload() {
         fi
     }
 
-    cleanup_registry_auth() {
-        if [ ! -e "$docker_config_path" ] && [ ! -L "$docker_config_path" ]; then
-            return 0
-        fi
-        [ -d "$docker_config_path" ]
-        [ ! -L "$docker_config_path" ]
-        [ "$(readlink -f "$docker_config_path")" = "$docker_config_path" ]
-        [ "$(stat -c '%U' "$docker_config_path")" = "$(id -un)" ]
-        [ "$(stat -c '%a' "$docker_config_path")" = "700" ]
-        rm -rf -- "$docker_config_path"
-    }
-
     # shellcheck disable=SC2329 # Invoked dynamically by the traps below.
     handle_activation_exit() {
         local activation_status="$1"
 
         trap - EXIT HUP INT TERM
-        cleanup_registry_auth || \
-            echo "Could not remove the per-deploy registry credential." >&2
         if runtime_release_is_committed; then
             commit_payload_pointer || \
                 echo "Runtime committed, but current could not be reconciled automatically." >&2
@@ -323,7 +301,6 @@ activate_remote_payload() {
 
     cd "$release_path"
     export ALITTLEMORE_RELEASE_ID="$release_name"
-    export DOCKER_CONFIG="$docker_config_path"
     if [ "$issue_certificates" = true ]; then
         timeout 15m make certbot-issue || deployment_status=$?
     fi
@@ -334,8 +311,6 @@ activate_remote_payload() {
         exit "$deployment_status"
     fi
     commit_payload_pointer
-    cleanup_registry_auth || \
-        echo "Deployment committed, but the per-deploy registry credential needs cleanup." >&2
     trap - EXIT HUP INT TERM
     prune_runtime_releases "$release_path" "$old_current_path" || \
         echo "Deployment committed, but older runtime payloads could not be fully pruned." >&2
@@ -349,7 +324,6 @@ fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 requested_certificate_issue="${ISSUE_CERTIFICATES:?ISSUE_CERTIFICATES must be set}"
-docker_config_path="${VALIDATED_REMOTE_PATH}/.deploy-state/registry-auth-${VALIDATED_DEPLOY_STAGE#incoming-}"
 timeout 50m ssh \
     -i "$HOME/.ssh/alittlemore-infra" \
     -o IdentitiesOnly=yes \
@@ -361,5 +335,4 @@ timeout 50m ssh \
     "$VALIDATED_REMOTE_PATH" \
     "$VALIDATED_DEPLOY_STAGE" \
     "$requested_certificate_issue" \
-    "$docker_config_path" \
     <"$script_dir/deploy_activate_payload.sh"

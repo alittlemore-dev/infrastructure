@@ -38,9 +38,10 @@ APIs start at `/api/personal-workspace/`, and Competency Trainer APIs at `/api/c
 
 ## Production deployment
 
-Prepare the production configuration, age identity, encrypted secrets, DNS, and registry login as
-described in [Production deployment](../docs/production-deploy.md). On the first deployment, issue
-the shared certificate and start the stack:
+Prepare the production configuration, age identity, encrypted secrets, and DNS, and make the four
+application GHCR packages public as described in
+[Production deployment](../docs/production-deploy.md). On the first deployment, issue the shared
+certificate and start the stack:
 
 ```bash
 make certbot-issue

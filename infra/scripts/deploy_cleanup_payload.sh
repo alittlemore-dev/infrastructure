@@ -8,7 +8,6 @@ cleanup_remote_payload() {
     local state_path
     local lock_file
     local stage_path
-    local registry_auth_path
 
     [[ "$stage_name" =~ ^incoming-[0-9]+-[0-9]+$ ]]
     [[ "$deploy_path" =~ ^/[A-Za-z0-9._/-]+$ ]]
@@ -33,16 +32,6 @@ cleanup_remote_payload() {
     [ "$(readlink -f "$state_path")" = "$state_path" ]
     [ "$(stat -c '%U' "$state_path")" = "$(id -un)" ]
     [ "$(stat -c '%a' "$state_path")" = "700" ]
-
-    registry_auth_path="$state_path/registry-auth-${stage_name#incoming-}"
-    if [ -e "$registry_auth_path" ] || [ -L "$registry_auth_path" ]; then
-        [ -d "$registry_auth_path" ]
-        [ ! -L "$registry_auth_path" ]
-        [ "$(readlink -f "$registry_auth_path")" = "$registry_auth_path" ]
-        [ "$(stat -c '%U' "$registry_auth_path")" = "$(id -un)" ]
-        [ "$(stat -c '%a' "$registry_auth_path")" = "700" ]
-        rm -rf -- "$registry_auth_path"
-    fi
 
     lock_file="$state_path/runtime.lock"
     [ ! -L "$lock_file" ]

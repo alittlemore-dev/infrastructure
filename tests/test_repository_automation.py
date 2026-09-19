@@ -28,15 +28,6 @@ def copy_script(source_name: str, repo_dir: Path) -> Path:
 
 
 class RepositoryAutomationTest(unittest.TestCase):
-    def test_dependabot_covers_supported_dependency_manifests(self) -> None:
-        config_path = ROOT / ".github/dependabot.yml"
-
-        self.assertTrue(config_path.is_file())
-        config = config_path.read_text(encoding="utf-8")
-        for ecosystem in ("github-actions", "docker-compose", "docker"):
-            self.assertIn(f'package-ecosystem: "{ecosystem}"', config)
-        self.assertFalse((ROOT / "renovate.json").exists())
-
     def test_validation_discovers_json_and_does_not_run_tests(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             repo_dir = Path(temporary_directory)

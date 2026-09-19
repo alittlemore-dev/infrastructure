@@ -42,19 +42,17 @@ pulled once, and all services in that run start from that locally resolved tag w
 pull.
 
 Create a protected GitHub Environment named `production`, restrict it to `main`, and require a
-reviewer. Configure these deploy connection and container-registry values:
+reviewer. Configure these deploy connection values:
 
-- Variables: `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_PATH`, `SSH_HOST_KEY_FINGERPRINT`,
-  `REGISTRY_USERNAME`
-- Secrets: `SSH_PRIVATE_KEY`, `REGISTRY_TOKEN`
+- Variables: `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_PATH`, `SSH_HOST_KEY_FINGERPRINT`
+- Secrets: `SSH_PRIVATE_KEY`
 
-`REGISTRY_TOKEN` must be a registry token for `REGISTRY_USERNAME` with read access to the four
-application images. The deploy workflow removes the secret from the SSH process environment and
-sends it only to `docker login --password-stdin` over the pinned connection. Login uses an
-owner-only, per-deploy Docker configuration under `.deploy-state`. Activation removes it on exit,
-the always-run cleanup step is a fallback even when the runtime lock is busy, and the next deploy
-removes any safely validated stale credential directories. The credential is never added to the
-deploy payload, the deploy user's regular Docker configuration, or runtime configuration.
+The deploy workflow deliberately performs no container-registry login. The four application image
+packages in `ghcr.io/alittlemore-dev` must therefore be configured as public packages so the
+production host can pull them anonymously. Publishing remains authenticated independently in each
+application repository's CI workflow. During activation, the host removes any strictly validated
+owner-only `registry-auth-<run>-<attempt>` directories left by the former authenticated deploy
+implementation.
 
 `SSH_HOST_KEY_FINGERPRINT` must be the pinned `SHA256:...` fingerprint of the server host key. The
 workflow obtains the presented keys with `ssh-keyscan`, retains only key lines whose fingerprint
@@ -112,6 +110,10 @@ Every application service declares `pull_policy: always`. `make run` resolves an
 the four references once, then starts every process with `--pull never`, so one deployment cannot
 mix different digests if a moving `latest` tag changes midway.
 
+All configured application image references must support anonymous pulls. For the current GHCR
+registry, keep the `personal-workspace`, `competency-trainer`, `auth-api`, and `frontend` packages
+public. The deploy user's Docker client does not need a saved GHCR login.
+
 The shared frontend repository currently contains the migrated Competency Trainer Angular SSR/CSR
 application. One blue/green frontend service owns every non-API route. Each frontend slot uses the
 matching Competency Trainer backend slot for SSR data requests while the frontend is expanded into
@@ -164,15 +166,13 @@ domain, the registry prefix, certificate lineage, and the SOPS identity path—a
 well. Review open-config changes through normal Git diffs.
 
 `IMAGE_REGISTRY` contains only the registry/repository prefix and must not end in `/`. Registry
-credentials do not belong in configuration files. The deploy workflow authenticates the deploy
-user's Docker client from the protected `REGISTRY_USERNAME` variable and `REGISTRY_TOKEN` secret
-before activating a release.
+credentials do not belong in configuration files, and the deploy workflow does not authenticate
+the deploy user's Docker client. The referenced application images must be anonymously pullable.
 
-The protected GitHub Environment needs only deployment transport and registry access values:
+The protected GitHub Environment needs only deployment transport values:
 
-- Variables: `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_PATH`, `SSH_HOST_KEY_FINGERPRINT`,
-  `REGISTRY_USERNAME`
-- Secrets: `SSH_PRIVATE_KEY`, `REGISTRY_TOKEN`
+- Variables: `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_PATH`, `SSH_HOST_KEY_FINGERPRINT`
+- Secrets: `SSH_PRIVATE_KEY`
 
 Do not remove plaintext bootstrap sources until the encrypted documents have been recovery-tested,
 committed, and successfully deployed. Keep those sources outside the repository with owner-only
