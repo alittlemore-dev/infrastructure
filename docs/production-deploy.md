@@ -101,8 +101,8 @@ already identifies the operator-selected payload.
 `IMAGE_REGISTRY` is the registry/repository prefix, for example `ghcr.io/alittlemore-dev`, and must
 not end in `/`. The application repositories build and publish these images:
 
-- `${IMAGE_REGISTRY}/personal-workspace:latest`
-- `${IMAGE_REGISTRY}/competency-trainer:latest`
+- `${IMAGE_REGISTRY}/personal-workspace-api:latest`
+- `${IMAGE_REGISTRY}/competency-trainer-api:latest`
 - `${IMAGE_REGISTRY}/auth-api:latest`
 - `${IMAGE_REGISTRY}/frontend:latest`
 
@@ -111,8 +111,8 @@ the four references once, then starts every process with `--pull never`, so one 
 mix different digests if a moving `latest` tag changes midway.
 
 All configured application image references must support anonymous pulls. For the current GHCR
-registry, keep the `personal-workspace`, `competency-trainer`, `auth-api`, and `frontend` packages
-public. The deploy user's Docker client does not need a saved GHCR login.
+registry, keep the `personal-workspace-api`, `competency-trainer-api`, `auth-api`, and `frontend`
+packages public. The deploy user's Docker client does not need a saved GHCR login.
 
 The shared frontend repository currently contains the migrated Competency Trainer Angular SSR/CSR
 application. One blue/green frontend service owns every non-API route. Each frontend slot uses the

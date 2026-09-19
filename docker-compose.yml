@@ -52,7 +52,7 @@ x-process-healthcheck: &process-healthcheck
 
 x-personal-workspace-backend: &personal-workspace-backend
   <<: *backend-runtime
-  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/personal-workspace:latest"
+  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/personal-workspace-api:latest"
   networks:
     - personal-workspace-network
   env_file:
@@ -90,7 +90,7 @@ x-personal-workspace-backend: &personal-workspace-backend
 
 x-competency-backend: &competency-backend
   <<: *backend-runtime
-  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/competency-trainer:latest"
+  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/competency-trainer-api:latest"
   networks:
     - competency-network
   env_file:
