@@ -50,11 +50,13 @@ if [ "$certificate_public_key" != "$private_public_key" ]; then
     exit 1
 fi
 
-chown 101:101 "${staging_directory}/fullchain.pem" "${staging_directory}/privkey.pem"
 chmod 644 "${staging_directory}/fullchain.pem"
 chmod 640 "${staging_directory}/privkey.pem"
 chmod 751 "$staging_directory"
-chown 101:101 "$staging_directory"
+chown 101:101 \
+    "$staging_directory" \
+    "${staging_directory}/fullchain.pem" \
+    "${staging_directory}/privkey.pem"
 mv "$staging_directory" "$release_directory"
 ln -s "releases/${release_name}" "$temporary_link"
 mv -Tf "$temporary_link" /certs/current
