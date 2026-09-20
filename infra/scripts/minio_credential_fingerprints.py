@@ -16,7 +16,16 @@ SECRET_FILES = (
     ("COMPETENCY_MINIO_SECRET_KEY", "COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE"),
     ("DATABASUS_MINIO_ACCESS_KEY", "COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE"),
     ("DATABASUS_MINIO_SECRET_KEY", "COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE"),
+    ("AUTH_API_MINIO_ACCESS_KEY", "COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE"),
+    ("AUTH_API_MINIO_SECRET_KEY", "COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE"),
 )
+
+LEGACY_SECRET_NAMES = {
+    "MINIO_ROOT_SECRET_KEY",
+    "PERSONAL_WORKSPACE_MINIO_SECRET_KEY",
+    "COMPETENCY_MINIO_SECRET_KEY",
+    "DATABASUS_MINIO_SECRET_KEY",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,7 +45,7 @@ def main() -> int:
     selected_files = SECRET_FILES
     if args.legacy_secret_keys_only:
         selected_files = tuple(
-            item for item in SECRET_FILES if item[0].endswith("_SECRET_KEY")
+            item for item in SECRET_FILES if item[0] in LEGACY_SECRET_NAMES
         )
     for name, file_variable in selected_files:
         secret_path = os.environ.get(file_variable)

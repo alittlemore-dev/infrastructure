@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 import tempfile
 import unittest
@@ -10,6 +11,26 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class AuthApiContractTest(unittest.TestCase):
+    def test_avatar_policy_is_private_and_least_privilege(self) -> None:
+        policy = json.loads(
+            (ROOT / "infra/minio/policies/auth-api.json").read_text(encoding="utf-8")
+        )
+        statements = policy["Statement"]
+
+        self.assertEqual(2, len(statements))
+        self.assertEqual(
+            {"s3:GetBucketLocation", "s3:ListBucket"},
+            set(statements[0]["Action"]),
+        )
+        self.assertEqual("arn:aws:s3:::auth-avatars", statements[0]["Resource"])
+        self.assertEqual(
+            {"s3:GetObject", "s3:PutObject", "s3:DeleteObject"},
+            set(statements[1]["Action"]),
+        )
+        self.assertEqual("arn:aws:s3:::auth-avatars/*", statements[1]["Resource"])
+        self.assertNotIn("Principal", repr(policy))
+        self.assertNotIn("s3:*", repr(policy))
+
     def validate_keys(self, algorithm: str, *, mismatch: bool = False) -> subprocess.CompletedProcess:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

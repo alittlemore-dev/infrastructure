@@ -97,6 +97,8 @@ class DevStateTest(unittest.TestCase):
                 state_dir / "secrets/auth-api/auth_private_key",
                 state_dir / "secrets/auth-api/auth_public_key",
                 state_dir / "secrets/auth-api/db_password",
+                state_dir / "secrets/auth-api/minio_access_key",
+                state_dir / "secrets/auth-api/minio_secret_key",
                 state_dir / "secrets/auth-api/sentry_dsn",
             )
             stable_files = private_stable_files + auth_api_compose_files
@@ -115,6 +117,11 @@ class DevStateTest(unittest.TestCase):
             self.assertEqual(0, second.returncode, second.stderr)
             self.assertEqual(initial_contents, {path: path.read_bytes() for path in stable_files})
             self.assertFalse(any(path.exists() for path in legacy_owner_files))
+            self.assertTrue(
+                (state_dir / "secrets/auth-api/minio_access_key")
+                .read_text(encoding="utf-8")
+                .startswith("local-auth-api-")
+            )
 
             for directory in (
                 state_dir,
@@ -393,12 +400,22 @@ class DevComposeTest(unittest.TestCase):
         self.assertNotIn("AUTH_PUBLIC_KEY", competency_backend["environment"])
         auth_backend = services["auth-api-backend-blue"]
         self.assertEqual("alittlemore.localhost", auth_backend["environment"]["APP_DOMAIN"])
+        self.assertEqual("minio", auth_backend["environment"]["MINIO_HOST"])
+        self.assertEqual("auth-avatars", auth_backend["environment"]["MINIO_BUCKET"])
+        self.assertIn("auth-api-network", services["minio"]["networks"])
+        self.assertIn("auth-api-network", services["minio-bootstrap"]["networks"])
+        self.assertEqual(
+            "service_completed_successfully",
+            auth_backend["depends_on"]["minio-bootstrap"]["condition"],
+        )
         self.assertEqual(
             {
                 "app_secret_key",
                 "auth_private_key",
                 "auth_public_key",
                 "db_password",
+                "minio_access_key",
+                "minio_secret_key",
                 "sentry_dsn",
             },
             {secret["target"] for secret in auth_backend["secrets"]},

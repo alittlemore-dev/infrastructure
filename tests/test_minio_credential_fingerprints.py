@@ -19,6 +19,8 @@ SECRET_FILE_VARIABLES = (
     ("COMPETENCY_MINIO_SECRET_KEY", "COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE"),
     ("DATABASUS_MINIO_ACCESS_KEY", "COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE"),
     ("DATABASUS_MINIO_SECRET_KEY", "COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE"),
+    ("AUTH_API_MINIO_ACCESS_KEY", "COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE"),
+    ("AUTH_API_MINIO_SECRET_KEY", "COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE"),
 )
 
 
@@ -33,6 +35,8 @@ class MinioCredentialFingerprintsTest(unittest.TestCase):
             "COMPETENCY_MINIO_SECRET_KEY": "competency-secret-value",
             "DATABASUS_MINIO_ACCESS_KEY": "databasus-access-key",
             "DATABASUS_MINIO_SECRET_KEY": "databasus-secret-value",
+            "AUTH_API_MINIO_ACCESS_KEY": "auth-api-access-key",
+            "AUTH_API_MINIO_SECRET_KEY": "auth-api-secret-value",
         }
         environment = os.environ.copy()
         for secret_name, file_variable in SECRET_FILE_VARIABLES:

@@ -509,6 +509,12 @@ def prepare(args: argparse.Namespace) -> None:
     stable_file(competency_secrets / "sentry_dsn", str, allow_empty=True)
     stable_file(auth_api_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
     stable_file(auth_api_secrets / "db_password", random_token, mode=0o444)
+    stable_file(
+        auth_api_secrets / "minio_access_key",
+        lambda: f"local-auth-api-{secrets.token_hex(6)}",
+        mode=0o444,
+    )
+    stable_file(auth_api_secrets / "minio_secret_key", random_token, mode=0o444)
     stable_file(auth_api_secrets / "sentry_dsn", str, allow_empty=True, mode=0o444)
     auth_api_private_key, auth_api_public_key = ensure_auth_key_pair(
         auth_api_secrets,
@@ -547,6 +553,8 @@ def prepare(args: argparse.Namespace) -> None:
         "COMPOSE_AUTH_API_AUTH_PRIVATE_KEY_FILE": str(auth_api_private_key),
         "COMPOSE_AUTH_API_AUTH_PUBLIC_KEY_FILE": str(auth_api_public_key),
         "COMPOSE_AUTH_API_DB_PASSWORD_FILE": str(auth_api_secrets / "db_password"),
+        "COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE": str(auth_api_secrets / "minio_access_key"),
+        "COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE": str(auth_api_secrets / "minio_secret_key"),
         "COMPOSE_AUTH_API_SENTRY_DSN_FILE": str(auth_api_secrets / "sentry_dsn"),
     }
     compose_environment = "".join(

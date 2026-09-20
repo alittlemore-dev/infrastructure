@@ -145,6 +145,14 @@ x-auth-api-backend: &auth-api-backend
     DB_HOST: auth-api-postgres
     DB_PASSWORD_FILE: /run/secrets/db_password
     DB_PORT: 5432
+    MINIO_ACCESS_KEY_FILE: /run/secrets/minio_access_key
+    MINIO_ADDRESSING_STYLE: path
+    MINIO_BUCKET: auth-avatars
+    MINIO_HOST: minio
+    MINIO_PORT: 9000
+    MINIO_REGION: ${MINIO_REGION}
+    MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret_key
+    MINIO_SECURE: "false"
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     VALKEY_HOST: auth-api-valkey
     VALKEY_PORT: 6379
@@ -157,6 +165,10 @@ x-auth-api-backend: &auth-api-backend
       target: auth_private_key
     - source: auth_api_db_password
       target: db_password
+    - source: auth_api_minio_access_key
+      target: minio_access_key
+    - source: auth_api_minio_secret_key
+      target: minio_secret_key
     - source: auth_api_sentry_dsn
       target: sentry_dsn
 
@@ -362,6 +374,8 @@ services:
         condition: service_healthy
       auth-api-valkey:
         condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
     networks:
       - auth-api-network
       - personal-auth-verification-network
@@ -377,6 +391,8 @@ services:
         condition: service_healthy
       auth-api-valkey:
         condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
     networks:
       - auth-api-network
       - personal-auth-verification-network
@@ -402,6 +418,8 @@ services:
         condition: service_healthy
       auth-api-valkey:
         condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
     healthcheck: *process-healthcheck
 
   auth-api-taskiq-worker-green:
@@ -413,6 +431,8 @@ services:
         condition: service_healthy
       auth-api-valkey:
         condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
     healthcheck: *process-healthcheck
 
   auth-api-taskiq-scheduler-blue:
@@ -523,6 +543,7 @@ services:
     networks:
       - personal-workspace-network
       - competency-network
+      - auth-api-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -561,12 +582,17 @@ services:
         target: databasus_minio_access_key
       - source: databasus_minio_secret_key
         target: databasus_minio_secret_key
+      - source: auth_api_minio_access_key
+        target: auth_api_minio_access_key
+      - source: auth_api_minio_secret_key
+        target: auth_api_minio_secret_key
     volumes:
       - ./infra/scripts/minio_bootstrap.sh:/bootstrap.sh:ro
       - ./infra/minio/policies:/policies:ro
     networks:
       - personal-workspace-network
       - competency-network
+      - auth-api-network
     depends_on:
       minio:
         condition: service_healthy
@@ -797,6 +823,10 @@ secrets:
     file: ${COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
   databasus_minio_secret_key:
     file: ${COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
+  auth_api_minio_access_key:
+    file: ${COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
+  auth_api_minio_secret_key:
+    file: ${COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
   personal_workspace_app_secret_key:
     file: ${COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
   personal_workspace_db_password:

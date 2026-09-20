@@ -65,6 +65,8 @@ class MinioBootstrapTest(unittest.TestCase):
                 "competency_minio_secret_key": "competency-secret",
                 "databasus_minio_access_key": "databasus",
                 "databasus_minio_secret_key": "databasus-secret",
+                "auth_api_minio_access_key": "auth-api",
+                "auth_api_minio_secret_key": "auth-api-secret",
             }
             for name, value in secret_values.items():
                 (secrets_dir / name).write_text(value, encoding="utf-8")
@@ -96,6 +98,7 @@ class MinioBootstrapTest(unittest.TestCase):
             state = json.loads(state_file.read_text(encoding="utf-8"))
             self.assertEqual(
                 [
+                    "alittlemore/auth-avatars",
                     "alittlemore/database-backups",
                     "alittlemore/knowledge-private",
                     "alittlemore/media",
@@ -107,6 +110,7 @@ class MinioBootstrapTest(unittest.TestCase):
                     "personal-workspace": "/policies/personal-workspace.json",
                     "competency-trainer": "/policies/competency-trainer.json",
                     "databasus": "/policies/databasus.json",
+                    "auth-api": "/policies/auth-api.json",
                 },
                 state["policies"],
             )
@@ -115,6 +119,7 @@ class MinioBootstrapTest(unittest.TestCase):
                     "personal-workspace": "personal-secret",
                     "competency-trainer": "competency-secret",
                     "databasus": "databasus-secret",
+                    "auth-api": "auth-api-secret",
                 },
                 state["users"],
             )
@@ -123,6 +128,7 @@ class MinioBootstrapTest(unittest.TestCase):
                     "personal-workspace": "personal-workspace",
                     "competency-trainer": "competency-trainer",
                     "databasus": "databasus",
+                    "auth-api": "auth-api",
                 },
                 state["attachments"],
             )

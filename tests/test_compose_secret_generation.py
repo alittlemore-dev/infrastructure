@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 import tempfile
 import unittest
@@ -13,6 +14,24 @@ SCRIPT = ROOT / "infra/scripts/compose_secrets.sh"
 
 
 class ComposeSecretGenerationTest(unittest.TestCase):
+    def test_auth_api_minio_secrets_have_distinct_compose_targets(self) -> None:
+        manifest = json.loads(
+            (ROOT / "infra/deploy/runtime-secrets.manifest.json").read_text(encoding="utf-8")
+        )
+        auth_document = next(
+            document for document in manifest["documents"] if document["name"] == "auth-api"
+        )
+        specs = {spec["name"]: spec for spec in auth_document["secrets"]}
+
+        self.assertEqual(
+            "COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE",
+            specs["MINIO_ACCESS_KEY"]["composeVariable"],
+        )
+        self.assertEqual(
+            "COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE",
+            specs["MINIO_SECRET_KEY"]["composeVariable"],
+        )
+
     def run_cleanup(
         self,
         candidate: Path,

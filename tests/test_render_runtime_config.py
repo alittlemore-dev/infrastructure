@@ -16,6 +16,26 @@ from render_runtime_config import render_runtime_config, write_private_file  # n
 
 
 class RenderRuntimeConfigTest(unittest.TestCase):
+    def test_repository_auth_api_config_declares_private_avatar_storage(self) -> None:
+        manifest_path = ROOT / "infra/deploy/runtime-config.manifest.json"
+
+        render_runtime_config(manifest_path, ROOT)
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        auth_config = next(
+            config for config in manifest["configs"] if config["name"] == "auth-api"
+        )
+        for variable in (
+            "MINIO_HOST",
+            "MINIO_PORT",
+            "MINIO_REGION",
+            "MINIO_BUCKET",
+            "MINIO_SECURE",
+            "MINIO_ADDRESSING_STYLE",
+            "TASKIQ_ACCOUNT_AVATAR_ORPHAN_PRUNE_INTERVAL_SECONDS",
+        ):
+            self.assertIn(variable, auth_config["variables"])
+
     def write_manifest(self, root: Path) -> Path:
         manifest = root / "manifest.json"
         manifest.write_text(
