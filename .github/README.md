@@ -25,7 +25,7 @@ entrypoint.
 
 ## Local development
 
-Keep `infra`, `frontend`, `personal-workspace`, `competency-trainer`, and `auth-api` next to each other. Trust
+Keep `infra`, `frontend`, `personal-workspace`, `competency-trainer`, `auth-api`, and `i18n` next to each other. Trust
 the local CA once, then start the complete stack:
 
 ```bash

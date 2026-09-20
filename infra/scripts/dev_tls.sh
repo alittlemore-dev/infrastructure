@@ -7,6 +7,7 @@ state_dir="${ALITTLEMORE_DEV_STATE_DIR:-${repo_dir}/.dev-state}"
 personal_workspace_dir="${PERSONAL_WORKSPACE_DIR:-${repo_dir}/../personal-workspace}"
 competency_trainer_dir="${COMPETENCY_TRAINER_DIR:-${repo_dir}/../competency-trainer}"
 auth_api_dir="${AUTH_API_DIR:-${repo_dir}/../auth-api}"
+i18n_dir="${I18N_DIR:-${repo_dir}/../i18n}"
 frontend_dir="${FRONTEND_DIR:-${repo_dir}/../frontend}"
 ca_certificate="${state_dir}/tls/local-development-ca.cert.pem"
 server_certificate="${state_dir}/tls/fullchain.pem"
@@ -29,6 +30,7 @@ prepare_state() {
         --personal-workspace-dir "$personal_workspace_dir" \
         --competency-trainer-dir "$competency_trainer_dir" \
         --auth-api-dir "$auth_api_dir" \
+        --i18n-dir "$i18n_dir" \
         --frontend-dir "$frontend_dir" >/dev/null
 }
 

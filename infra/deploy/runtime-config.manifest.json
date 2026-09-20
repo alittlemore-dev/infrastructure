@@ -137,6 +137,17 @@
         "DB_USER": "AUTH_API_DB_USER",
         "DB_NAME": "AUTH_API_DB_NAME"
       }
+    },
+    {
+      "name": "i18n",
+      "path": "config/i18n/production.env",
+      "variables": [
+        "APP_DEBUG",
+        "APP_USE_CACHE",
+        "I18N_DEFAULT_LANGUAGE",
+        "SENTRY_USE"
+      ],
+      "runtimeAliases": {}
     }
   ]
 }

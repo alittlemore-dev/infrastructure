@@ -194,7 +194,36 @@ x-competency-agent-secrets: &competency-agent-secrets
   - source: competency_agent_certificate_chain
     target: agent_certificate_chain
 
+x-i18n-backend: &i18n-backend
+  <<: *backend-runtime
+  image: "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set}/i18n:latest"
+  networks:
+    - i18n-network
+  env_file:
+    - ${I18N_ENV_FILE:-./config/i18n/production.env}
+  environment:
+    VALKEY_HOST: i18n-valkey
+    VALKEY_PORT: 6379
+    SENTRY_DSN_FILE: /run/secrets/sentry_dsn
+  secrets:
+    - source: i18n_sentry_dsn
+      target: sentry_dsn
+  depends_on:
+    i18n-valkey:
+      condition: service_healthy
+  healthcheck:
+    <<: *backend-healthcheck
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/i18n/healthcheck/ready', timeout=3).close()"]
+
 services:
+  i18n-backend-blue:
+    <<: *i18n-backend
+    container_name: i18n_backend_blue
+
+  i18n-backend-green:
+    <<: *i18n-backend
+    container_name: i18n_backend_green
+
   personal-workspace-backend-blue:
     <<: *personal-workspace-backend
     container_name: personal_workspace_backend_blue
@@ -459,11 +488,13 @@ services:
     container_name: alittlemore_frontend_blue
     networks:
       - competency-network
+      - i18n-network
     environment:
       PORT: 4000
       APP_URL_SCHEMA: ${APP_URL_SCHEMA}
       APP_DOMAIN: ${APP_DOMAIN}
       SSR_API_ORIGIN: http://competency-backend-blue:8080
+      SSR_I18N_ORIGIN: http://i18n-backend-blue:8080
       SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${APP_DOMAIN}
       NG_ALLOWED_HOSTS: ${APP_DOMAIN}
     healthcheck: *frontend-healthcheck
@@ -474,11 +505,13 @@ services:
     container_name: alittlemore_frontend_green
     networks:
       - competency-network
+      - i18n-network
     environment:
       PORT: 4000
       APP_URL_SCHEMA: ${APP_URL_SCHEMA}
       APP_DOMAIN: ${APP_DOMAIN}
       SSR_API_ORIGIN: http://competency-backend-green:8080
+      SSR_I18N_ORIGIN: http://i18n-backend-green:8080
       SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${APP_DOMAIN}
       NG_ALLOWED_HOSTS: ${APP_DOMAIN}
     healthcheck: *frontend-healthcheck
@@ -514,6 +547,21 @@ services:
       - personal_workspace_valkey_data:/data
     networks:
       - personal-workspace-network
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 60s
+      retries: 12
+
+  i18n-valkey:
+    image: valkey/valkey:9.0.1
+    container_name: i18n_valkey
+    user: "999:999"
+    restart: unless-stopped
+    volumes:
+      - i18n_valkey_data:/data
+    networks:
+      - i18n-network
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
@@ -717,6 +765,7 @@ services:
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
       PERSONAL_WORKSPACE_ACTIVE_BACKEND: ${PERSONAL_WORKSPACE_ACTIVE_BACKEND:-personal-workspace-backend-blue}
+      I18N_ACTIVE_BACKEND: ${I18N_ACTIVE_BACKEND:-i18n-backend-blue}
       AUTH_API_ACTIVE_BACKEND: ${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}
       COMPETENCY_ACTIVE_BACKEND: ${COMPETENCY_ACTIVE_BACKEND:-competency-backend-blue}
       FRONTEND_ACTIVE: ${FRONTEND_ACTIVE:-frontend-blue}
@@ -741,6 +790,7 @@ services:
       - personal-workspace-network
       - competency-network
       - auth-api-network
+      - i18n-network
     healthcheck:
       test: ["CMD", "/usr/local/bin/alittlemore-nginx-healthcheck"]
       interval: 5s
@@ -787,6 +837,8 @@ services:
     network_mode: none
 
 networks:
+  i18n-network:
+    driver: bridge
   auth-api-network:
     driver: bridge
   personal-auth-verification-network:
@@ -803,6 +855,7 @@ networks:
     driver: bridge
 
 volumes:
+  i18n_valkey_data:
   auth_api_postgres_data:
   auth_api_valkey_data:
   personal_workspace_postgres_data:
@@ -815,6 +868,8 @@ volumes:
   certbot_www:
 
 secrets:
+  i18n_sentry_dsn:
+    file: ${COMPOSE_I18N_SENTRY_DSN_FILE:?prepare Compose secrets first}
   minio_root_access_key:
     file: ${COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE:?prepare Compose secrets first}
   minio_root_secret_key:

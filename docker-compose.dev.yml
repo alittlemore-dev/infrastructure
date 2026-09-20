@@ -10,7 +10,26 @@ x-auth-api-dev-image: &auth-api-dev-image
   image: alittlemore-dev/auth-api:local
   pull_policy: never
 
+x-i18n-dev-image: &i18n-dev-image
+  image: alittlemore-dev/i18n:local
+  pull_policy: never
+
 services:
+  i18n-backend-blue:
+    <<: *i18n-dev-image
+    build:
+      context: ${I18N_BUILD_CONTEXT:?I18n checkout is required}
+      dockerfile: Dockerfile
+    container_name: alittlemore_dev_i18n_backend_blue
+
+  i18n-backend-green:
+    <<: *i18n-dev-image
+    container_name: alittlemore_dev_i18n_backend_green
+    profiles: [production-only]
+
+  i18n-valkey:
+    container_name: alittlemore_dev_i18n_valkey
+
   personal-workspace-backend-blue:
     <<: *personal-workspace-dev-image
     build:

@@ -25,6 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--personal-workspace-dir", required=True, type=Path)
     parser.add_argument("--competency-trainer-dir", required=True, type=Path)
     parser.add_argument("--auth-api-dir", required=True, type=Path)
+    parser.add_argument("--i18n-dir", required=True, type=Path)
     parser.add_argument("--frontend-dir", required=True, type=Path)
     return parser.parse_args()
 
@@ -468,6 +469,7 @@ def prepare(args: argparse.Namespace) -> None:
         args.competency_trainer_dir, "Competency Trainer", ("Dockerfile",)
     )
     auth_api = validate_checkout(args.auth_api_dir, "Auth API", ("Dockerfile",))
+    i18n = validate_checkout(args.i18n_dir, "I18n", ("Dockerfile",))
     frontend = validate_checkout(args.frontend_dir, "Frontend", ("Dockerfile",))
     state_dir = args.state_dir.expanduser().absolute()
     ensure_directory(state_dir)
@@ -478,6 +480,9 @@ def prepare(args: argparse.Namespace) -> None:
     platform_secrets = secrets_dir / "platform"
     personal_secrets = secrets_dir / "personal-workspace"
     competency_secrets = secrets_dir / "competency-trainer"
+    i18n_secrets = secrets_dir / "i18n"
+    ensure_directory(i18n_secrets)
+    stable_file(i18n_secrets / "sentry_dsn", str, allow_empty=True, mode=0o444)
     auth_api_secrets = secrets_dir / "auth-api"
     for directory in (platform_secrets, personal_secrets, competency_secrets, auth_api_secrets):
         ensure_directory(directory)
@@ -530,6 +535,8 @@ def prepare(args: argparse.Namespace) -> None:
         "PERSONAL_WORKSPACE_BUILD_CONTEXT": str(personal_workspace),
         "COMPETENCY_BUILD_CONTEXT": str(competency_trainer),
         "AUTH_API_BUILD_CONTEXT": str(auth_api),
+        "I18N_BUILD_CONTEXT": str(i18n),
+        "COMPOSE_I18N_SENTRY_DSN_FILE": str(i18n_secrets / "sentry_dsn"),
         "FRONTEND_BUILD_CONTEXT": str(frontend),
         "NGINX_CERTS_DIR": str(state_dir / "tls"),
         "COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE": str(platform_secrets / "minio_root_access_key"),

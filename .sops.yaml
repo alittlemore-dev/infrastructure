@@ -1,5 +1,5 @@
 creation_rules:
-  - path_regex: ^secrets/(platform|personal-workspace|competency-trainer|auth-api)/production\.sops\.yaml$
+  - path_regex: ^secrets/(platform|personal-workspace|competency-trainer|auth-api|i18n)/production\.sops\.yaml$
     age:
       - age1urx4m4hnwpjt5t53mzhmtdgm00qx57rzwxes4kzqkfvnxjqskals4g6jj8
       - age1t9swap92mc799w578gtcewdrglt36zlt26gdp6lhm9hzxkrk7psszg4mtd

@@ -8,7 +8,7 @@ readonly temporary_file="${rendered_file}.tmp"
 
 mkdir -p "$rendered_directory"
 # shellcheck disable=SC2016 # envsubst needs a literal allowlist of variable names.
-envsubst '$APP_DOMAIN $PERSONAL_WORKSPACE_ACTIVE_BACKEND $AUTH_API_ACTIVE_BACKEND $COMPETENCY_ACTIVE_BACKEND $FRONTEND_ACTIVE $MINIO_DOMAIN $MINIO_PUBLIC_URL $SSL_CERT $SSL_KEY' \
+envsubst '$APP_DOMAIN $PERSONAL_WORKSPACE_ACTIVE_BACKEND $AUTH_API_ACTIVE_BACKEND $I18N_ACTIVE_BACKEND $COMPETENCY_ACTIVE_BACKEND $FRONTEND_ACTIVE $MINIO_DOMAIN $MINIO_PUBLIC_URL $SSL_CERT $SSL_KEY' \
     < "$template_file" > "$temporary_file"
 
 if [ ! -s "$temporary_file" ]; then

@@ -7,6 +7,7 @@ state_dir="${ALITTLEMORE_DEV_STATE_DIR:-${repo_dir}/.dev-state}"
 personal_workspace_dir="${PERSONAL_WORKSPACE_DIR:-${repo_dir}/../personal-workspace}"
 competency_trainer_dir="${COMPETENCY_TRAINER_DIR:-${repo_dir}/../competency-trainer}"
 auth_api_dir="${AUTH_API_DIR:-${repo_dir}/../auth-api}"
+i18n_dir="${I18N_DIR:-${repo_dir}/../i18n}"
 frontend_dir="${FRONTEND_DIR:-${repo_dir}/../frontend}"
 platform_environment="${repo_dir}/config/platform/development.env"
 state_environment="${state_dir}/compose.env"
@@ -67,6 +68,15 @@ smoke_local_edge() {
         "alittlemore.localhost|/api/personal-workspace/healthcheck"
         "alittlemore.localhost|/api/competency/healthcheck"
         "alittlemore.localhost|/api/auth/healthcheck"
+        "alittlemore.localhost|/api/i18n/healthcheck/ready"
+        "alittlemore.localhost|/api/i18n/languages"
+        "alittlemore.localhost|/api/i18n/bundles/ru"
+        "alittlemore.localhost|/api/i18n/bundles/en"
+        "alittlemore.localhost|/api/i18n/personal-workspace/bundles/ru"
+        "alittlemore.localhost|/api/i18n/personal-workspace/bundles/en"
+        "alittlemore.localhost|/api/personal-workspace/i18n/languages"
+        "alittlemore.localhost|/api/personal-workspace/i18n/bundles/ru"
+        "alittlemore.localhost|/api/personal-workspace/i18n/bundles/en"
         "s3.localhost|/minio/health/live"
     )
 
@@ -110,6 +120,7 @@ python3 "${script_dir}/prepare_dev_state.py" \
     --personal-workspace-dir "$personal_workspace_dir" \
     --competency-trainer-dir "$competency_trainer_dir" \
     --auth-api-dir "$auth_api_dir" \
+    --i18n-dir "$i18n_dir" \
     --frontend-dir "$frontend_dir"
 bash "${script_dir}/dev_tls.sh" verify
 
@@ -118,6 +129,7 @@ compose build \
     personal-workspace-backend-blue \
     competency-backend-blue \
     auth-api-backend-blue \
+    i18n-backend-blue \
     frontend-blue \
     minio \
     nginx
@@ -130,6 +142,7 @@ compose_up_wait missing \
     competency-valkey \
     auth-api-postgres \
     auth-api-valkey \
+    i18n-valkey \
     minio \
     databasus
 run_initializers
@@ -143,6 +156,7 @@ compose_up_wait never \
     competency-taskiq-worker-blue \
     competency-taskiq-scheduler-blue \
     auth-api-backend-blue \
+    i18n-backend-blue \
     auth-api-taskiq-worker-blue \
     auth-api-taskiq-scheduler-blue \
     frontend-blue \

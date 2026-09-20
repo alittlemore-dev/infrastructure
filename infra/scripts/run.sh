@@ -23,6 +23,7 @@ readonly APPLICATION_IMAGE_SERVICES=(
     personal-workspace-backend-init
     competency-backend-init
     auth-api-backend-init
+    i18n-backend-blue
     frontend-blue
 )
 readonly INFRASTRUCTURE_SERVICES=(
@@ -32,6 +33,7 @@ readonly INFRASTRUCTURE_SERVICES=(
     auth-api-postgres
     competency-valkey
     auth-api-valkey
+    i18n-valkey
     minio
     databasus
 )
@@ -162,6 +164,7 @@ verify_runtime_restart_policies() {
         "personal-workspace-taskiq-scheduler-${target_slot}"
         "competency-backend-${target_slot}"
         "auth-api-backend-${target_slot}"
+        "i18n-backend-${target_slot}"
         "competency-taskiq-worker-${target_slot}"
         "auth-api-taskiq-worker-${target_slot}"
         "competency-taskiq-scheduler-${target_slot}"
@@ -285,6 +288,7 @@ stop_previous_slot() {
         "personal-workspace-taskiq-scheduler-${previous}" \
         "competency-backend-${previous}" \
         "auth-api-backend-${previous}" \
+        "i18n-backend-${previous}" \
         "competency-taskiq-worker-${previous}" \
         "auth-api-taskiq-worker-${previous}" \
         "competency-taskiq-scheduler-${previous}" \
@@ -311,6 +315,7 @@ restore_previous_edge() {
             "personal-workspace-backend-${target_slot}" \
             "competency-backend-${target_slot}" \
             "auth-api-backend-${target_slot}" \
+            "i18n-backend-${target_slot}" \
             "frontend-${target_slot}" || \
             echo "Some first-deployment target application containers could not be stopped." >&2
         return
@@ -319,6 +324,7 @@ restore_previous_edge() {
     export PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-${previous_slot}"
     export COMPETENCY_ACTIVE_BACKEND="competency-backend-${previous_slot}"
     export AUTH_API_ACTIVE_BACKEND="auth-api-backend-${previous_slot}"
+    export I18N_ACTIVE_BACKEND="i18n-backend-${previous_slot}"
     export FRONTEND_ACTIVE="frontend-${previous_slot}"
     export NGINX_IMAGE="${NGINX_IMAGE_REPOSITORY}:${previous_slot}"
 
@@ -361,6 +367,7 @@ prepare_compose_secret_files "$target_slot"
 export PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-${target_slot}"
 export COMPETENCY_ACTIVE_BACKEND="competency-backend-${target_slot}"
 export AUTH_API_ACTIVE_BACKEND="auth-api-backend-${target_slot}"
+export I18N_ACTIVE_BACKEND="i18n-backend-${target_slot}"
 export FRONTEND_ACTIVE="frontend-${target_slot}"
 
 pull_application_images
@@ -372,6 +379,7 @@ compose_up_wait --no-build --pull never --force-recreate \
     "$PERSONAL_WORKSPACE_ACTIVE_BACKEND" \
     "$COMPETENCY_ACTIVE_BACKEND" \
     "$AUTH_API_ACTIVE_BACKEND" \
+    "$I18N_ACTIVE_BACKEND" \
     "$FRONTEND_ACTIVE"
 sync_certificates
 build_and_validate_candidate_edge

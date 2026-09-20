@@ -7,6 +7,7 @@ secrets/
 ├── platform/production.sops.yaml
 ├── personal-workspace/production.sops.yaml
 ├── competency-trainer/production.sops.yaml
+├── i18n/production.sops.yaml
 └── auth-api/production.sops.yaml
 ```
 

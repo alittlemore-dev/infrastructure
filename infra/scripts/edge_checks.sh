@@ -66,6 +66,15 @@ smoke_edge_applications() {
         "${APP_DOMAIN}|/api/personal-workspace/healthcheck"
         "${APP_DOMAIN}|/api/competency/healthcheck"
         "${APP_DOMAIN}|/api/auth/healthcheck"
+        "${APP_DOMAIN}|/api/i18n/healthcheck/ready"
+        "${APP_DOMAIN}|/api/i18n/languages"
+        "${APP_DOMAIN}|/api/i18n/bundles/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/en"
+        "${APP_DOMAIN}|/api/i18n/personal-workspace/bundles/ru"
+        "${APP_DOMAIN}|/api/i18n/personal-workspace/bundles/en"
+        "${APP_DOMAIN}|/api/personal-workspace/i18n/languages"
+        "${APP_DOMAIN}|/api/personal-workspace/i18n/bundles/ru"
+        "${APP_DOMAIN}|/api/personal-workspace/i18n/bundles/en"
     )
 
     for check in "${checks[@]}"; do

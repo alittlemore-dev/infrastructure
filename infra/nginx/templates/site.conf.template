@@ -4,6 +4,7 @@ map $http_upgrade $connection_upgrade {
 }
 
 limit_req_status 429;
+limit_req_zone $binary_remote_addr zone=i18n_api_per_ip:20m rate=120r/m;
 limit_req_zone $binary_remote_addr zone=auth_api_per_ip:20m rate=120r/m;
 limit_req_zone $binary_remote_addr zone=auth_login_per_ip:10m rate=5r/m;
 limit_req_zone $binary_remote_addr zone=auth_refresh_per_ip:10m rate=30r/m;
@@ -24,6 +25,11 @@ upstream personal_workspace_backend {
 upstream competency_backend {
     zone competency_backend_zone 64k;
     server ${COMPETENCY_ACTIVE_BACKEND}:8080 resolve;
+}
+
+upstream i18n_backend {
+    zone i18n_backend_zone 64k;
+    server ${I18N_ACTIVE_BACKEND}:8080 resolve;
 }
 
 upstream auth_api_backend {
@@ -157,6 +163,16 @@ server {
         proxy_pass http://personal_workspace_backend/api/docs;
     }
 
+    location = /api/personal-workspace/i18n/languages {
+        limit_req zone=i18n_api_per_ip burst=120 nodelay;
+        proxy_pass http://i18n_backend/api/i18n/languages;
+    }
+
+    location ^~ /api/personal-workspace/i18n/bundles/ {
+        limit_req zone=i18n_api_per_ip burst=120 nodelay;
+        proxy_pass http://i18n_backend/api/i18n/personal-workspace/bundles/;
+    }
+
     location ^~ /api/personal-workspace/ {
         limit_req zone=personal_api_per_ip burst=120 nodelay;
         proxy_redirect ~^https?://[^/]+/api/(.*)$ $scheme://$host/api/personal-workspace/$1;
@@ -182,6 +198,21 @@ server {
     location = /api/auth/refresh {
         limit_req zone=auth_refresh_per_ip burst=30 nodelay;
         proxy_pass http://auth_api_backend;
+    }
+
+    location ^~ /api/i18n/docs {
+        limit_req zone=i18n_api_per_ip burst=120 nodelay;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: ${MINIO_PUBLIC_URL} https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' ${MINIO_PUBLIC_URL}; upgrade-insecure-requests" always;
+        proxy_pass http://i18n_backend/api/i18n/docs;
+    }
+
+    location ^~ /api/i18n/ {
+        limit_req zone=i18n_api_per_ip burst=120 nodelay;
+        proxy_pass http://i18n_backend;
     }
 
     location ^~ /api/auth/docs {

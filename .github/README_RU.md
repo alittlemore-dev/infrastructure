@@ -26,7 +26,7 @@ production-топологию, конфигурацию, секреты, TLS edg
 
 ## Локальная разработка
 
-Расположите `infra`, `frontend`, `personal-workspace`, `competency-trainer` и `auth-api` рядом. Один раз добавьте
+Расположите `infra`, `frontend`, `personal-workspace`, `competency-trainer`, `auth-api` и `i18n` рядом. Один раз добавьте
 локальный центр сертификации в доверенные, затем запустите весь стек:
 
 ```bash

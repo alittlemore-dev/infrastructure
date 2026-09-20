@@ -30,6 +30,7 @@ def create_frontend_checkout(root: Path) -> Path:
 
 
 def create_auth_api_checkout(root: Path) -> Path:
+    create_checkout(root, "i18n")
     checkout = root / "auth-api"
     checkout.mkdir()
     (checkout / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
@@ -55,6 +56,8 @@ def run_state_preparer(
             str(personal_workspace),
             "--competency-trainer-dir",
             str(competency_trainer),
+            "--i18n-dir",
+            str(auth_api.parent / "i18n"),
             "--auth-api-dir",
             str(auth_api),
             "--frontend-dir",
@@ -321,6 +324,8 @@ class DevStateTest(unittest.TestCase):
                     str(root / "missing-personal-workspace"),
                     "--competency-trainer-dir",
                     str(competency_trainer),
+                    "--i18n-dir",
+                    str(auth_api.parent / "i18n"),
                     "--auth-api-dir",
                     str(auth_api),
                     "--frontend-dir",
@@ -383,6 +388,7 @@ class DevComposeTest(unittest.TestCase):
         expected_builds = {
             "personal-workspace-backend-blue": personal_workspace,
             "competency-backend-blue": competency_trainer,
+            "i18n-backend-blue": auth_api.parent / "i18n",
             "auth-api-backend-blue": auth_api,
             "frontend-blue": frontend,
         }
@@ -394,6 +400,11 @@ class DevComposeTest(unittest.TestCase):
         self.assertEqual(
             "alittlemore.localhost",
             services["personal-workspace-backend-blue"]["environment"]["APP_DOMAIN"],
+        )
+        self.assertIn("i18n-network", services["frontend-blue"]["networks"])
+        self.assertEqual(
+            "http://i18n-backend-blue:8080",
+            services["frontend-blue"]["environment"]["SSR_I18N_ORIGIN"],
         )
         competency_backend = services["competency-backend-blue"]
         self.assertEqual("alittlemore.localhost", competency_backend["environment"]["APP_DOMAIN"])
@@ -435,6 +446,7 @@ class DevComposeTest(unittest.TestCase):
             "competency-backend-green",
             "competency-taskiq-worker-green",
             "competency-taskiq-scheduler-green",
+            "i18n-backend-green",
             "auth-api-backend-green",
             "auth-api-taskiq-worker-green",
             "auth-api-taskiq-scheduler-green",
@@ -485,6 +497,7 @@ class DevOrchestrationTest(unittest.TestCase):
                     "ALITTLEMORE_DEV_STATE_DIR": str(state_dir),
                     "PERSONAL_WORKSPACE_DIR": str(personal_workspace),
                     "COMPETENCY_TRAINER_DIR": str(competency_trainer),
+                    "I18N_DIR": str(auth_api.parent / "i18n"),
                     "AUTH_API_DIR": str(auth_api),
                     "FRONTEND_DIR": str(frontend),
                     "FAKE_SECURITY_LOG": str(security_log),
@@ -551,6 +564,7 @@ class DevOrchestrationTest(unittest.TestCase):
                     "ALITTLEMORE_DEV_STATE_DIR": str(state_dir),
                     "PERSONAL_WORKSPACE_DIR": str(personal_workspace),
                     "COMPETENCY_TRAINER_DIR": str(competency_trainer),
+                    "I18N_DIR": str(auth_api.parent / "i18n"),
                     "AUTH_API_DIR": str(auth_api),
                     "FRONTEND_DIR": str(frontend),
                     "FAKE_DOCKER_LOG": str(docker_log),

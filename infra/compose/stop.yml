@@ -1,6 +1,12 @@
 name: alittlemore-infra
 
 services:
+  i18n-backend-blue:
+    image: scratch
+  i18n-backend-green:
+    image: scratch
+  i18n-valkey:
+    image: scratch
   personal-workspace-backend-blue:
     image: scratch
   personal-workspace-backend-green:

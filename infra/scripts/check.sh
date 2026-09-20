@@ -37,6 +37,7 @@ set +a
 export PERSONAL_WORKSPACE_ACTIVE_BACKEND=personal-workspace-backend-blue
 export COMPETENCY_ACTIVE_BACKEND=competency-backend-blue
 export AUTH_API_ACTIVE_BACKEND=auth-api-backend-blue
+export I18N_ACTIVE_BACKEND=i18n-backend-blue
 while IFS= read -r compose_secret_variable; do
     export "$compose_secret_variable=/dev/null"
 done < <(

@@ -104,6 +104,7 @@ not end in `/`. The application repositories build and publish these images:
 - `${IMAGE_REGISTRY}/personal-workspace-api:latest`
 - `${IMAGE_REGISTRY}/competency-trainer-api:latest`
 - `${IMAGE_REGISTRY}/auth-api:latest`
+- `${IMAGE_REGISTRY}/i18n:latest`
 - `${IMAGE_REGISTRY}/frontend:latest`
 
 Every application service declares `pull_policy: always`. `make run` resolves and pulls each of
@@ -111,7 +112,7 @@ the four references once, then starts every process with `--pull never`, so one 
 mix different digests if a moving `latest` tag changes midway.
 
 All configured application image references must support anonymous pulls. For the current GHCR
-registry, keep the `personal-workspace-api`, `competency-trainer-api`, `auth-api`, and `frontend`
+registry, keep the `personal-workspace-api`, `competency-trainer-api`, `auth-api`, `i18n`, and `frontend`
 packages public. The deploy user's Docker client does not need a saved GHCR login.
 
 The shared frontend repository currently contains the migrated Competency Trainer Angular SSR/CSR
@@ -149,6 +150,7 @@ config/
 ├── platform/production.env
 ├── personal-workspace/production.env
 ├── competency-trainer/production.env
+├── i18n/production.env
 └── auth-api/production.env
 ```
 
@@ -203,6 +205,7 @@ secrets/
 ├── platform/production.sops.yaml
 ├── personal-workspace/production.sops.yaml
 ├── competency-trainer/production.sops.yaml
+├── i18n/production.sops.yaml
 └── auth-api/production.sops.yaml
 ```
 
@@ -276,6 +279,7 @@ document, so repeated native names such as `DB_PASSWORD` need no prefixes:
      --personal-workspace-env /absolute/path/personal-workspace.production.env \
      --competency-trainer-env /absolute/path/competency-trainer.production.env \
      --auth-api-env /absolute/path/auth-api.production.env \
+     --i18n-env /absolute/path/i18n.production.env \
      --age-recipient age1-production-recipient \
      --age-recipient age1-recovery-recipient
    ```
@@ -631,3 +635,28 @@ parse a version. This network-dependent status check is intentionally separate f
 deterministic `make quality` gate. The underlying Python checker uses exit status `1` for available
 updates when called with `--check`, and always uses `2` for lookup or parsing errors. The
 human-facing Make target treats a reported update as a successful status query.
+
+## Translation service
+
+The standalone `i18n` image listens on port 8080 and uses a dedicated `i18n-valkey`
+cache. It joins the unified blue/green readiness, edge activation, rollback and
+old-slot cleanup flow without database migrations or background workers. Publish
+`${IMAGE_REGISTRY}/i18n:latest` before deploying this infrastructure revision.
+
+Public configuration lives in `config/i18n/production.env`; the optional Sentry
+DSN is materialized from `secrets/i18n/production.sops.yaml`. Sentry is enabled with `SENTRY_USE=true`; its DSN comes from the encrypted document.
+The encrypted document uses
+the same age recipients as the other services.
+
+Nginx forwards `/api/i18n/` unchanged. Legacy
+`/api/personal-workspace/i18n/languages` and
+`/api/personal-workspace/i18n/bundles/{language}` proxy to the new language list
+and Personal Workspace catalogue, preserving compatibility with existing clients.
+`/api/i18n/bundles/{language}` serves the default catalogue. Each frontend slot
+joins the i18n network and receives `SSR_I18N_ORIGIN` pointing to its matching
+i18n backend, so server-side translation requests use the same catalogue as
+browser requests. The development override inherits this routing.
+
+Local development requires the sibling `i18n` checkout (or explicit `I18N_DIR`)
+and builds `alittlemore-dev/i18n:local`. Local state, cache and secrets use the
+existing isolated development project.
