@@ -163,16 +163,6 @@ server {
         proxy_pass http://personal_workspace_backend/api/docs;
     }
 
-    location = /api/personal-workspace/i18n/languages {
-        limit_req zone=i18n_api_per_ip burst=120 nodelay;
-        proxy_pass http://i18n_backend/api/i18n/languages;
-    }
-
-    location ^~ /api/personal-workspace/i18n/bundles/ {
-        limit_req zone=i18n_api_per_ip burst=120 nodelay;
-        proxy_pass http://i18n_backend/api/i18n/personal-workspace/bundles/;
-    }
-
     location ^~ /api/personal-workspace/ {
         limit_req zone=personal_api_per_ip burst=120 nodelay;
         proxy_redirect ~^https?://[^/]+/api/(.*)$ $scheme://$host/api/personal-workspace/$1;

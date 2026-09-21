@@ -648,13 +648,12 @@ DSN is materialized from `secrets/i18n/production.sops.yaml`. Sentry is enabled 
 The encrypted document uses
 the same age recipients as the other services.
 
-Nginx forwards `/api/i18n/` unchanged. Legacy
-`/api/personal-workspace/i18n/languages` and
-`/api/personal-workspace/i18n/bundles/{language}` proxy to the new language list
-and Personal Workspace catalogue, preserving compatibility with existing clients.
-`/api/i18n/bundles/{language}` serves the default catalogue. Each frontend slot
+Nginx forwards `/api/i18n/` unchanged. Interface messages are exposed through
+`/api/i18n/bundles/{bundle}/{language}`; the frontend loads `shared` at startup and the
+active route's feature bundle on demand. The retired Personal Workspace compatibility paths are
+not proxied. Each frontend slot
 joins the i18n network and receives `SSR_I18N_ORIGIN` pointing to its matching
-i18n backend, so server-side translation requests use the same catalogue as
+i18n backend, so server-side translation requests use the same bundles as
 browser requests. The development override inherits this routing.
 
 Local development requires the sibling `i18n` checkout (or explicit `I18N_DIR`)

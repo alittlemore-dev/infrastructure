@@ -62,6 +62,7 @@ smoke_local_edge() {
     local hostname
     local path
     local attempt
+    local status
     local -a checks=(
         "alittlemore.localhost|/healthz"
         "alittlemore.localhost|/ru/how-this-site-is-built"
@@ -70,14 +71,25 @@ smoke_local_edge() {
         "alittlemore.localhost|/api/auth/healthcheck"
         "alittlemore.localhost|/api/i18n/healthcheck/ready"
         "alittlemore.localhost|/api/i18n/languages"
-        "alittlemore.localhost|/api/i18n/bundles/ru"
-        "alittlemore.localhost|/api/i18n/bundles/en"
-        "alittlemore.localhost|/api/i18n/personal-workspace/bundles/ru"
-        "alittlemore.localhost|/api/i18n/personal-workspace/bundles/en"
-        "alittlemore.localhost|/api/personal-workspace/i18n/languages"
-        "alittlemore.localhost|/api/personal-workspace/i18n/bundles/ru"
-        "alittlemore.localhost|/api/personal-workspace/i18n/bundles/en"
+        "alittlemore.localhost|/api/i18n/bundles/shared/ru"
+        "alittlemore.localhost|/api/i18n/bundles/shared/en"
+        "alittlemore.localhost|/api/i18n/bundles/how-this-site-is-built/ru"
+        "alittlemore.localhost|/api/i18n/bundles/how-this-site-is-built/en"
+        "alittlemore.localhost|/api/i18n/bundles/articles/ru"
+        "alittlemore.localhost|/api/i18n/bundles/competency-matrix/ru"
+        "alittlemore.localhost|/api/i18n/bundles/updates/ru"
+        "alittlemore.localhost|/api/i18n/bundles/sitemap/ru"
+        "alittlemore.localhost|/api/i18n/bundles/account/ru"
+        "alittlemore.localhost|/api/i18n/bundles/admin-panel/ru"
+        "alittlemore.localhost|/api/i18n/bundles/personal-workspace/ru"
+        "alittlemore.localhost|/api/i18n/bundles/personal-workspace/en"
         "s3.localhost|/minio/health/live"
+    )
+    local -a retired_i18n_paths=(
+        "/api/i18n/bundles/ru"
+        "/api/i18n/personal-workspace/bundles/ru"
+        "/api/personal-workspace/i18n/languages"
+        "/api/personal-workspace/i18n/bundles/ru"
     )
 
     for check in "${checks[@]}"; do
@@ -102,6 +114,23 @@ smoke_local_edge() {
             fi
             sleep 1
         done
+    done
+
+    for path in "${retired_i18n_paths[@]}"; do
+        status="$(curl \
+            --silent \
+            --show-error \
+            --output /dev/null \
+            --write-out '%{http_code}' \
+            --max-time 5 \
+            --noproxy '*' \
+            --cacert "$ca_certificate" \
+            --resolve "alittlemore.localhost:443:127.0.0.1" \
+            "https://alittlemore.localhost${path}")"
+        if [ "$status" != 404 ]; then
+            echo "Retired i18n path returned ${status}, expected 404: ${path}" >&2
+            return 1
+        fi
     done
 }
 

@@ -11,6 +11,23 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class I18nContractTest(unittest.TestCase):
+    def test_edge_uses_only_bundle_scoped_i18n_contract(self) -> None:
+        nginx = (ROOT / 'infra/nginx/templates/site.conf.template').read_text()
+        local_smoke = (ROOT / 'infra/scripts/dev.sh').read_text()
+        production_smoke = (ROOT / 'infra/scripts/edge_checks.sh').read_text()
+
+        for source in (local_smoke, production_smoke):
+            self.assertIn('/api/i18n/bundles/shared/ru', source)
+            self.assertIn('/api/i18n/bundles/how-this-site-is-built/en', source)
+            self.assertIn('/api/i18n/bundles/personal-workspace/en', source)
+            self.assertIn('retired_i18n_paths', source)
+            self.assertIn('/api/i18n/bundles/ru', source)
+            self.assertIn('/api/i18n/personal-workspace/bundles/ru', source)
+            self.assertIn('/api/personal-workspace/i18n/bundles/ru', source)
+            self.assertIn('expected 404', source)
+        self.assertNotIn('location = /api/personal-workspace/i18n/languages', nginx)
+        self.assertNotIn('location ^~ /api/personal-workspace/i18n/bundles/', nginx)
+
     def test_production_service_has_scoped_cache_secrets_and_ready_probe(self) -> None:
         manifest = json.loads((ROOT / 'infra/deploy/runtime-secrets.manifest.json').read_text())
         env = dict(os.environ, IMAGE_REGISTRY='registry.example.test/app',

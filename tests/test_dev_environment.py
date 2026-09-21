@@ -552,7 +552,10 @@ class DevOrchestrationTest(unittest.TestCase):
             )
             make_executable(
                 binary_dir / "curl",
-                "#!/bin/sh\nprintf '%s\\n' \"$*\" >>\"$FAKE_CURL_LOG\"\nexit 0\n",
+                "#!/bin/sh\n"
+                "printf '%s\\n' \"$*\" >>\"$FAKE_CURL_LOG\"\n"
+                "case \" $* \" in *' --write-out '*) printf '404' ;; esac\n"
+                "exit 0\n",
             )
             make_executable(binary_dir / "security", "#!/bin/sh\nexit 0\n")
 
@@ -606,6 +609,8 @@ class DevOrchestrationTest(unittest.TestCase):
                 "https://alittlemore.localhost/api/personal-workspace/healthcheck",
                 "https://alittlemore.localhost/api/competency/healthcheck",
                 "https://alittlemore.localhost/api/auth/healthcheck",
+                "https://alittlemore.localhost/api/i18n/bundles/ru",
+                "https://alittlemore.localhost/api/personal-workspace/i18n/bundles/ru",
                 "https://s3.localhost/minio/health/live",
             ):
                 self.assertIn(url, curl_calls)

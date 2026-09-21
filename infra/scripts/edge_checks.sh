@@ -60,6 +60,7 @@ smoke_edge_applications() {
     local hostname
     local path
     local attempt
+    local status
     local -a checks=(
         "${APP_DOMAIN}|/healthz"
         "${APP_DOMAIN}|/ru/how-this-site-is-built"
@@ -68,13 +69,24 @@ smoke_edge_applications() {
         "${APP_DOMAIN}|/api/auth/healthcheck"
         "${APP_DOMAIN}|/api/i18n/healthcheck/ready"
         "${APP_DOMAIN}|/api/i18n/languages"
-        "${APP_DOMAIN}|/api/i18n/bundles/ru"
-        "${APP_DOMAIN}|/api/i18n/bundles/en"
-        "${APP_DOMAIN}|/api/i18n/personal-workspace/bundles/ru"
-        "${APP_DOMAIN}|/api/i18n/personal-workspace/bundles/en"
-        "${APP_DOMAIN}|/api/personal-workspace/i18n/languages"
-        "${APP_DOMAIN}|/api/personal-workspace/i18n/bundles/ru"
-        "${APP_DOMAIN}|/api/personal-workspace/i18n/bundles/en"
+        "${APP_DOMAIN}|/api/i18n/bundles/shared/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/shared/en"
+        "${APP_DOMAIN}|/api/i18n/bundles/how-this-site-is-built/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/how-this-site-is-built/en"
+        "${APP_DOMAIN}|/api/i18n/bundles/articles/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/competency-matrix/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/updates/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/sitemap/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/account/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/admin-panel/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/personal-workspace/ru"
+        "${APP_DOMAIN}|/api/i18n/bundles/personal-workspace/en"
+    )
+    local -a retired_i18n_paths=(
+        "/api/i18n/bundles/ru"
+        "/api/i18n/personal-workspace/bundles/ru"
+        "/api/personal-workspace/i18n/languages"
+        "/api/personal-workspace/i18n/bundles/ru"
     )
 
     for check in "${checks[@]}"; do
@@ -98,5 +110,21 @@ smoke_edge_applications() {
             fi
             sleep 1
         done
+    done
+
+    for path in "${retired_i18n_paths[@]}"; do
+        status="$(curl \
+            --silent \
+            --show-error \
+            --output /dev/null \
+            --write-out '%{http_code}' \
+            --max-time 5 \
+            --noproxy '*' \
+            --resolve "${APP_DOMAIN}:443:127.0.0.1" \
+            "https://${APP_DOMAIN}${path}")"
+        if [ "$status" != 404 ]; then
+            echo "Retired i18n path returned ${status}, expected 404: ${path}" >&2
+            return 1
+        fi
     done
 }
