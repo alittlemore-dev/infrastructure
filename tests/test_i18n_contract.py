@@ -11,6 +11,56 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class I18nContractTest(unittest.TestCase):
+    def run_edge_smoke_with_ssr_state(self, ssr_state: str) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(temporary) / 'test.sh'
+            script.write_text(f'''set -euo pipefail
+repo_dir={str(ROOT)!r}
+script_dir="${{repo_dir}}/infra/scripts"
+. "${{script_dir}}/common.sh"
+. "${{script_dir}}/edge_checks.sh"
+APP_DOMAIN=app.example.test
+curl() {{
+    local output=''
+    local write_status=false
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --output) output="$2"; shift 2 ;;
+            --write-out) write_status=true; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+    if [ "$write_status" = true ]; then
+        printf '404'
+    elif [ -n "$output" ] && [ "$output" != /dev/null ]; then
+        printf '%s' {ssr_state!r} >"$output"
+    fi
+}}
+sleep() {{ :; }}
+smoke_edge_applications
+''')
+            return subprocess.run(
+                ['bash', str(script)], capture_output=True, text=True, check=False
+            )
+
+    def test_edge_smoke_rejects_ssr_without_the_route_bundle(self) -> None:
+        result = self.run_edge_smoke_with_ssr_state('i18n.bundle.shared.ru')
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn('how-this-site-is-built', result.stderr)
+
+    def test_edge_smoke_accepts_shared_and_route_bundles_for_both_languages(self) -> None:
+        result = self.run_edge_smoke_with_ssr_state(
+            ' '.join((
+                'i18n.bundle.shared.ru',
+                'i18n.bundle.how-this-site-is-built.ru',
+                'i18n.bundle.shared.en',
+                'i18n.bundle.how-this-site-is-built.en',
+            ))
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_edge_uses_only_bundle_scoped_i18n_contract(self) -> None:
         nginx = (ROOT / 'infra/nginx/templates/site.conf.template').read_text()
         local_smoke = (ROOT / 'infra/scripts/dev.sh').read_text()

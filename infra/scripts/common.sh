@@ -73,6 +73,21 @@ require_distinct_values() {
     done
 }
 
+verify_i18n_ssr_transfer_state() {
+    local rendered_page="$1"
+    local language="$2"
+    local bundle
+    local state_key
+
+    for bundle in shared how-this-site-is-built; do
+        state_key="i18n.bundle.${bundle}.${language}"
+        if ! grep -Fq "$state_key" "$rendered_page"; then
+            echo "SSR response is missing i18n TransferState for ${bundle}/${language}." >&2
+            return 1
+        fi
+    done
+}
+
 runtime_state_directory() {
     local marker_file="${repo_dir}/.alittlemore-runtime-root"
     local runtime_root

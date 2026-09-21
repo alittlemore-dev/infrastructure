@@ -63,6 +63,8 @@ smoke_local_edge() {
     local path
     local attempt
     local status
+    local language
+    local rendered_page
     local -a checks=(
         "alittlemore.localhost|/healthz"
         "alittlemore.localhost|/ru/how-this-site-is-built"
@@ -132,6 +134,29 @@ smoke_local_edge() {
             return 1
         fi
     done
+
+    rendered_page="$(mktemp)"
+    for language in ru en; do
+        if ! curl \
+            --fail \
+            --silent \
+            --show-error \
+            --output "$rendered_page" \
+            --max-time 10 \
+            --noproxy '*' \
+            --cacert "$ca_certificate" \
+            --resolve "alittlemore.localhost:443:127.0.0.1" \
+            "https://alittlemore.localhost/${language}/how-this-site-is-built"; then
+            rm -f "$rendered_page"
+            echo "Could not fetch the ${language} SSR page for i18n verification." >&2
+            return 1
+        fi
+        if ! verify_i18n_ssr_transfer_state "$rendered_page" "$language"; then
+            rm -f "$rendered_page"
+            return 1
+        fi
+    done
+    rm -f "$rendered_page"
 }
 
 require_docker_compose

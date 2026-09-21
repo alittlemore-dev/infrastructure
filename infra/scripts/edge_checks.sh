@@ -61,6 +61,8 @@ smoke_edge_applications() {
     local path
     local attempt
     local status
+    local language
+    local rendered_page
     local -a checks=(
         "${APP_DOMAIN}|/healthz"
         "${APP_DOMAIN}|/ru/how-this-site-is-built"
@@ -127,4 +129,26 @@ smoke_edge_applications() {
             return 1
         fi
     done
+
+    rendered_page="$(mktemp)"
+    for language in ru en; do
+        if ! curl \
+            --fail \
+            --silent \
+            --show-error \
+            --output "$rendered_page" \
+            --max-time 10 \
+            --noproxy '*' \
+            --resolve "${APP_DOMAIN}:443:127.0.0.1" \
+            "https://${APP_DOMAIN}/${language}/how-this-site-is-built"; then
+            rm -f "$rendered_page"
+            echo "Could not fetch the ${language} SSR page for i18n verification." >&2
+            return 1
+        fi
+        if ! verify_i18n_ssr_transfer_state "$rendered_page" "$language"; then
+            rm -f "$rendered_page"
+            return 1
+        fi
+    done
+    rm -f "$rendered_page"
 }

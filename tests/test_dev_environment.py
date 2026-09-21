@@ -554,7 +554,18 @@ class DevOrchestrationTest(unittest.TestCase):
                 binary_dir / "curl",
                 "#!/bin/sh\n"
                 "printf '%s\\n' \"$*\" >>\"$FAKE_CURL_LOG\"\n"
-                "case \" $* \" in *' --write-out '*) printf '404' ;; esac\n"
+                "case \" $* \" in *' --write-out '*) printf '404'; exit 0 ;; esac\n"
+                "output=''\n"
+                "while [ \"$#\" -gt 0 ]; do\n"
+                "  case \"$1\" in\n"
+                "    --output) output=\"$2\"; shift 2 ;;\n"
+                "    *) shift ;;\n"
+                "  esac\n"
+                "done\n"
+                "if [ -n \"$output\" ] && [ \"$output\" != /dev/null ]; then\n"
+                "  printf '%s' 'i18n.bundle.shared.ru i18n.bundle.how-this-site-is-built.ru "
+                "i18n.bundle.shared.en i18n.bundle.how-this-site-is-built.en' >\"$output\"\n"
+                "fi\n"
                 "exit 0\n",
             )
             make_executable(binary_dir / "security", "#!/bin/sh\nexit 0\n")
@@ -606,6 +617,7 @@ class DevOrchestrationTest(unittest.TestCase):
             for url in (
                 "https://alittlemore.localhost/healthz",
                 "https://alittlemore.localhost/ru/how-this-site-is-built",
+                "https://alittlemore.localhost/en/how-this-site-is-built",
                 "https://alittlemore.localhost/api/personal-workspace/healthcheck",
                 "https://alittlemore.localhost/api/competency/healthcheck",
                 "https://alittlemore.localhost/api/auth/healthcheck",
