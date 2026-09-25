@@ -179,14 +179,20 @@ python3 "${script_dir}/prepare_dev_state.py" \
 bash "${script_dir}/dev_tls.sh" verify
 
 compose config --quiet
-compose build \
-    personal-workspace-backend-blue \
-    competency-backend-blue \
-    auth-api-backend-blue \
-    i18n-backend-blue \
-    frontend-blue \
-    minio \
+build_services=(
+    personal-workspace-backend-blue
+    competency-backend-blue
+    auth-api-backend-blue
+    i18n-backend-blue
+    frontend-blue
     nginx
+)
+if ! docker image inspect alittlemore-dev/minio:local >/dev/null 2>&1; then
+    build_services+=(minio)
+else
+    echo "Reusing local MinIO image: alittlemore-dev/minio:local"
+fi
+compose build "${build_services[@]}"
 prepare_minio_volume_permissions
 compose_up_wait missing \
     --remove-orphans \
