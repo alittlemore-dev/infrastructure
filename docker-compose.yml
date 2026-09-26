@@ -75,7 +75,7 @@ x-personal-workspace-backend: &personal-workspace-backend
     MINIO_SECURE: "false"
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
-    TELEGRAM_AUTH_API_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/internal/telegram/personal-workspace/redemptions
+    TELEGRAM_AUTH_API_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/internal/telegram/personal-workspace/settings
     TELEGRAM_SERVICE_SECRET_FILE: /run/secrets/telegram_service_secret
     TELEGRAM_WEBHOOK_SECRET_FILE: /run/secrets/telegram_webhook_secret
     VALKEY_HOST: personal-workspace-valkey

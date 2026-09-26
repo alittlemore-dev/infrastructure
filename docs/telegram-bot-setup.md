@@ -1,11 +1,12 @@
 # Personal Workspace Telegram bot setup
 
-`personal-workspace` owns the bot token, webhook, and Telegram message handling. `auth-api` owns
-bot-scoped account settings, invitations, and connections. The web settings page calls the
-`auth-api` account API; the bot calls its protected internal redemption API.
+`personal-workspace` owns the bot token, webhook, invitations, chat IDs, and connections.
+`auth-api` owns the account's per-bot enable switch in `UserModel.settings`. The web settings
+page calls both services; Personal Workspace reads the switch through a protected internal API.
 
 1. Create the bot with BotFather. Set `TELEGRAM_BOT_USERNAME` and `TELEGRAM_AVAILABLE=true` in
-   both `config/personal-workspace/production.env` and `config/auth-api/production.env`.
+   `config/personal-workspace/production.env`; set `TELEGRAM_AVAILABLE=true` in
+   `config/auth-api/production.env`.
 2. Keep `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` in the existing owner-only Personal
    Workspace bootstrap dotenv file. Encrypt them in
    `secrets/personal-workspace/telegram.sops.yaml`.
@@ -19,7 +20,7 @@ bot-scoped account settings, invitations, and connections. The web settings page
 5. In web settings, enable the bot, create a single-use invitation, and approve the pending
    connection after the participant opens the link in a private chat.
 
-The internal redemption endpoint is blocked at the public edge and authenticates every call
+The internal settings endpoint is blocked at the public edge and authenticates every call
 with the service secret. Rotating the bot token or webhook secret affects only
 `personal-workspace`. Rotate the shared service secret in both encrypted documents together.
 
