@@ -523,6 +523,7 @@ def prepare(args: argparse.Namespace) -> None:
     )
     stable_file(auth_api_secrets / "minio_secret_key", random_token, mode=0o444)
     stable_file(auth_api_secrets / "sentry_dsn", str, allow_empty=True, mode=0o444)
+    stable_file(auth_api_secrets / "telegram_service_secret", random_token, mode=0o444)
     auth_api_private_key, auth_api_public_key = ensure_auth_key_pair(
         auth_api_secrets,
         label="Auth API auth key pair",
@@ -551,6 +552,7 @@ def prepare(args: argparse.Namespace) -> None:
         "COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE": str(personal_secrets / "minio_secret_key"),
         "COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE": str(personal_secrets / "sentry_dsn"),
         "COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_BOT_TOKEN_FILE": str(personal_secrets / "telegram_bot_token"),
+        "COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_SERVICE_SECRET_FILE": str(auth_api_secrets / "telegram_service_secret"),
         "COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_WEBHOOK_SECRET_FILE": str(personal_secrets / "telegram_webhook_secret"),
         "COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE": str(competency_secrets / "app_secret_key"),
         "COMPOSE_COMPETENCY_DB_PASSWORD_FILE": str(competency_secrets / "db_password"),
@@ -561,6 +563,7 @@ def prepare(args: argparse.Namespace) -> None:
         "COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE": str(competency_secrets / "agent_issuing_private_key"),
         "COMPOSE_COMPETENCY_AGENT_CERTIFICATE_CHAIN_FILE": str(competency_secrets / "agent_certificate_chain"),
         "COMPOSE_AUTH_API_APP_SECRET_KEY_FILE": str(auth_api_secrets / "app_secret_key"),
+        "COMPOSE_AUTH_API_TELEGRAM_SERVICE_SECRET_FILE": str(auth_api_secrets / "telegram_service_secret"),
         "COMPOSE_AUTH_API_AUTH_PRIVATE_KEY_FILE": str(auth_api_private_key),
         "COMPOSE_AUTH_API_AUTH_PUBLIC_KEY_FILE": str(auth_api_public_key),
         "COMPOSE_AUTH_API_DB_PASSWORD_FILE": str(auth_api_secrets / "db_password"),

@@ -95,6 +95,9 @@ class DevStateTest(unittest.TestCase):
             )
             self.assertTrue(all(path.is_file() for path in telegram_secret_paths))
             self.assertTrue(all(path.read_text(encoding="utf-8") == "" for path in telegram_secret_paths))
+            self.assertTrue(
+                (state_dir / "secrets/auth-api/telegram_service_secret").read_text(encoding="utf-8")
+            )
 
             private_stable_files = (
                 state_dir / "secrets/platform/minio_root_secret_key",
@@ -434,6 +437,7 @@ class DevComposeTest(unittest.TestCase):
                 "minio_access_key",
                 "minio_secret_key",
                 "sentry_dsn",
+                "telegram_service_secret",
             },
             {secret["target"] for secret in auth_backend["secrets"]},
         )

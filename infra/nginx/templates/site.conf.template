@@ -215,6 +215,10 @@ server {
         proxy_pass http://auth_api_backend/api/auth/docs;
     }
 
+    location ^~ /api/auth/internal/ {
+        return 404;
+    }
+
     location ^~ /api/auth/ {
         limit_req zone=auth_api_per_ip burst=120 nodelay;
         proxy_pass http://auth_api_backend;

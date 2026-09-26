@@ -1,30 +1,28 @@
 # Personal Workspace Telegram bot setup
 
-The Personal Workspace service uses one shared Telegram bot. The bot is disabled until its
-deployment credentials are configured. Web users then enable it for their own Workspace in
-Settings → Telegram.
+`personal-workspace` owns the bot token, webhook, and Telegram message handling. `auth-api` owns
+bot-scoped account settings, invitations, and connections. The web settings page calls the
+`auth-api` account API; the bot calls its protected internal redemption API.
 
-1. Create a bot with BotFather. Record its username without `@` and its API token. Generate an
-   independent random webhook secret using an approved secret generator. Add
-   `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` to the owner-only Personal Workspace
-   bootstrap dotenv file outside the repository. Do not place either secret in a tracked `.env` file.
-2. Set `TELEGRAM_BOT_USERNAME` and `TELEGRAM_AVAILABLE=true` in
-   `config/personal-workspace/production.env`.
-3. With an authorized age identity, encrypt the two Telegram values into
-   `secrets/personal-workspace/telegram.sops.yaml`. The bootstrap script reads the same owner-only
-   Personal Workspace dotenv source for this document and for `production.sops.yaml`. For later
-   rotations, edit only the Telegram SOPS document as described in `docs/production-deploy.md`.
-4. Run `make secrets-verify SOPS_AGE_KEY_FILE=/absolute/path/to/age-key` and `make validate`,
-   then deploy through the normal release process. The service registers
-   `https://<APP_DOMAIN>/api/personal-workspace/telegram/webhook` with Telegram at startup.
-5. In Personal Workspace, enable Telegram under account settings. Create a single-use invitation
-   for each participant. A participant opens it in a private chat; the owner approves the pending
-   request in the same settings page.
+1. Create the bot with BotFather. Set `TELEGRAM_BOT_USERNAME` and `TELEGRAM_AVAILABLE=true` in
+   both `config/personal-workspace/production.env` and `config/auth-api/production.env`.
+2. Keep `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` in the existing owner-only Personal
+   Workspace bootstrap dotenv file. Encrypt them in
+   `secrets/personal-workspace/telegram.sops.yaml`.
+3. Generate one independent random `TELEGRAM_SERVICE_SECRET` and put the **same value** in the
+   existing owner-only Personal Workspace and Auth API bootstrap dotenv files. Encrypt it into
+   `secrets/personal-workspace/telegram.sops.yaml` and
+   `secrets/auth-api/production.sops.yaml`. The two services receive it as a Docker secret.
+4. Run `make secrets-verify SOPS_AGE_KEY_FILE=/absolute/path/to/age-key`, `make validate`, and
+   the normal release checks before deployment. At startup the bot registers
+   `https://<APP_DOMAIN>/api/personal-workspace/telegram/webhook` with Telegram.
+5. In web settings, enable the bot, create a single-use invitation, and approve the pending
+   connection after the participant opens the link in a private chat.
 
-The bot token is shared infrastructure configuration. A web invitation is a separate, short-lived
-token shown once to the owner. Rotating a web invitation cancels its predecessor; rotating the bot
-token requires changing the encrypted deployment secret and restarting the service.
+The internal redemption endpoint is blocked at the public edge and authenticates every call
+with the service secret. Rotating the bot token or webhook secret affects only
+`personal-workspace`. Rotate the shared service secret in both encrypted documents together.
 
-The local development stack keeps `TELEGRAM_AVAILABLE=false` and creates empty files for bot
-credentials. To test a real webhook locally, configure a publicly reachable HTTPS endpoint and
-matching bot credentials; Telegram cannot deliver webhooks to `*.localhost`.
+Local development keeps `TELEGRAM_AVAILABLE=false`, generates one shared service credential,
+and creates empty bot token and webhook secret files. A real local webhook needs a reachable
+HTTPS endpoint; Telegram cannot deliver webhooks to `*.localhost`.

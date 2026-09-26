@@ -75,6 +75,8 @@ x-personal-workspace-backend: &personal-workspace-backend
     MINIO_SECURE: "false"
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
+    TELEGRAM_AUTH_API_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/internal/telegram/personal-workspace/redemptions
+    TELEGRAM_SERVICE_SECRET_FILE: /run/secrets/telegram_service_secret
     TELEGRAM_WEBHOOK_SECRET_FILE: /run/secrets/telegram_webhook_secret
     VALKEY_HOST: personal-workspace-valkey
     VALKEY_PORT: 6379
@@ -91,6 +93,8 @@ x-personal-workspace-backend: &personal-workspace-backend
       target: sentry_dsn
     - source: personal_workspace_telegram_bot_token
       target: telegram_bot_token
+    - source: personal_workspace_telegram_service_secret
+      target: telegram_service_secret
     - source: personal_workspace_telegram_webhook_secret
       target: telegram_webhook_secret
 
@@ -160,11 +164,14 @@ x-auth-api-backend: &auth-api-backend
     MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret_key
     MINIO_SECURE: "false"
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
+    TELEGRAM_SERVICE_SECRET_FILE: /run/secrets/telegram_service_secret
     VALKEY_HOST: auth-api-valkey
     VALKEY_PORT: 6379
   secrets: &auth-api-backend-secrets
     - source: auth_api_app_secret_key
       target: app_secret_key
+    - source: auth_api_telegram_service_secret
+      target: telegram_service_secret
     - source: auth_api_auth_public_key
       target: auth_public_key
     - source: auth_api_auth_private_key
@@ -900,8 +907,12 @@ secrets:
     file: ${COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE:?prepare Compose secrets first}
   personal_workspace_telegram_bot_token:
     file: ${COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_BOT_TOKEN_FILE:?prepare Compose secrets first}
+  personal_workspace_telegram_service_secret:
+    file: ${COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_SERVICE_SECRET_FILE:?prepare Compose secrets first}
   personal_workspace_telegram_webhook_secret:
     file: ${COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_WEBHOOK_SECRET_FILE:?prepare Compose secrets first}
+  auth_api_telegram_service_secret:
+    file: ${COMPOSE_AUTH_API_TELEGRAM_SERVICE_SECRET_FILE:?prepare Compose secrets first}
   competency_app_secret_key:
     file: ${COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
   competency_db_password:
