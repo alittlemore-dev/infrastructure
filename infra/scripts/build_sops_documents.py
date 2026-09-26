@@ -154,10 +154,11 @@ def write_public_file(path: Path, content: str) -> None:
         output_file.write(content)
 
 
-def render_sops_config(recipients: list[str]) -> str:
+def render_sops_config(recipients: list[str], paths: list[str]) -> str:
+    path_pattern = "|".join(f"^{re.escape(path)}$" for path in paths)
     lines = [
         "creation_rules:",
-        "  - path_regex: ^secrets/(platform|personal-workspace|competency-trainer|auth-api|i18n)/production\\.sops\\.yaml$",
+        f"  - path_regex: {path_pattern}",
         "    age:",
     ]
     lines.extend(f"      - {recipient}" for recipient in recipients)
@@ -181,6 +182,7 @@ def build_documents(args: argparse.Namespace) -> None:
         raise ValueError("Manifest documents must be a non-empty list.")
 
     encrypted_documents: list[tuple[Path, str]] = []
+    encrypted_paths: list[str] = []
     document_names: set[str] = set()
     for document in documents:
         if not isinstance(document, dict) or set(document) != {"name", "path", "secrets"}:
@@ -237,6 +239,7 @@ def build_documents(args: argparse.Namespace) -> None:
                 encrypt_document(args.sops_binary, recipients, native_values, document_name),
             )
         )
+        encrypted_paths.append(relative_path)
 
     unexpected_sources = sorted(set(source_paths) - document_names)
     if unexpected_sources:
@@ -244,7 +247,7 @@ def build_documents(args: argparse.Namespace) -> None:
 
     for path, content in encrypted_documents:
         write_public_file(path, content)
-    write_public_file(args.repo_dir / ".sops.yaml", render_sops_config(recipients))
+    write_public_file(args.repo_dir / ".sops.yaml", render_sops_config(recipients, encrypted_paths))
 
 
 def main() -> int:

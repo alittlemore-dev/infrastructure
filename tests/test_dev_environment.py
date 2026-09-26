@@ -89,6 +89,12 @@ class DevStateTest(unittest.TestCase):
                 state_dir, personal_workspace, competency_trainer, auth_api, frontend
             )
             self.assertEqual(0, first.returncode, first.stderr)
+            telegram_secret_paths = (
+                state_dir / "secrets/personal-workspace/telegram_bot_token",
+                state_dir / "secrets/personal-workspace/telegram_webhook_secret",
+            )
+            self.assertTrue(all(path.is_file() for path in telegram_secret_paths))
+            self.assertTrue(all(path.read_text(encoding="utf-8") == "" for path in telegram_secret_paths))
 
             private_stable_files = (
                 state_dir / "secrets/platform/minio_root_secret_key",
@@ -104,7 +110,7 @@ class DevStateTest(unittest.TestCase):
                 state_dir / "secrets/auth-api/minio_secret_key",
                 state_dir / "secrets/auth-api/sentry_dsn",
             )
-            stable_files = private_stable_files + auth_api_compose_files
+            stable_files = private_stable_files + auth_api_compose_files + telegram_secret_paths
             initial_contents = {path: path.read_bytes() for path in stable_files}
             legacy_owner_files = (
                 state_dir / "credentials",

@@ -204,6 +204,7 @@ Tracked secrets are split by scope and encrypted with SOPS using age recipients:
 secrets/
 ├── platform/production.sops.yaml
 ├── personal-workspace/production.sops.yaml
+├── personal-workspace/telegram.sops.yaml
 ├── competency-trainer/production.sops.yaml
 ├── i18n/production.sops.yaml
 └── auth-api/production.sops.yaml
@@ -215,7 +216,7 @@ path is the namespace.
 `infra/deploy/runtime-secrets.manifest.json` uses the same native names. No prefixed migration
 aliases are passed to applications or retained in the manifest.
 
-At startup, `infra/scripts/compose_secrets.sh` decrypts the four documents in memory into an
+At startup, `infra/scripts/compose_secrets.sh` decrypts the manifest documents in memory into an
 owner-only immutable generation, validates their exact keys, normalizes explicitly marked PEM
 values, validates the application PKI, and checks all eight MinIO credential fingerprints. Only
 then does it atomically switch the symlink for the inactive blue/green slot. The active slot keeps
@@ -271,7 +272,7 @@ document, so repeated native names such as `DB_PASSWORD` need no prefixes:
      production-age-key.txt /etc/alittlemore-infra/sops-age-key.txt
    ```
 
-4. From the infrastructure repository, encrypt the four local sources for both public recipients:
+4. From the infrastructure repository, encrypt the local sources for both public recipients:
 
    ```bash
    bash infra/scripts/bootstrap_sops_secrets.sh \
@@ -285,8 +286,9 @@ document, so repeated native names such as `DB_PASSWORD` need no prefixes:
    ```
 
    The script requires regular owner-only input files, parses them as data without shell sourcing,
-   selects only the native keys declared for each document, and writes `.sops.yaml` plus the four
-   encrypted documents.
+   selects only the native keys declared for each document, and writes `.sops.yaml` plus the
+   encrypted documents. The Personal Workspace source also provides the Telegram credentials;
+   these may contain empty values while the bot is disabled.
 5. Verify every document with the recovery identity before committing it:
 
    ```bash
@@ -298,7 +300,7 @@ document, so repeated native names such as `DB_PASSWORD` need no prefixes:
      sops decrypt secrets/competency-trainer/production.sops.yaml >/dev/null
    ```
 
-6. Commit `.sops.yaml` and the four encrypted documents. After a successful production deploy,
+6. Commit `.sops.yaml` and the encrypted documents. After a successful production deploy,
    remove the temporary plaintext bootstrap sources. Retain only the two private age identities in
    their protected locations and the deployment transport values in GitHub.
 

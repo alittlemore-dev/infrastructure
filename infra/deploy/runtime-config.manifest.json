@@ -39,6 +39,8 @@
         "APP_DEBUG",
         "APP_DOMAIN",
         "APP_USE_CACHE",
+        "TELEGRAM_AVAILABLE",
+        "TELEGRAM_BOT_USERNAME",
         "FILES_ORPHAN_RETENTION_SECONDS",
         "SENTRY_USE",
         "AUTH_TIMEOUT_SECONDS",

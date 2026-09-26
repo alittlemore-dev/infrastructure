@@ -14,6 +14,59 @@ SSH_CONFIGURE_SCRIPT = ROOT / "infra/scripts/deploy_configure_ssh.sh"
 
 
 class EdgeSecurityContractTest(unittest.TestCase):
+    def test_sops_bootstrap_reuses_personal_workspace_source_for_telegram(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory)
+            fake_bin = temporary_path / "bin"
+            fake_bin.mkdir()
+            fake_python = fake_bin / "python3"
+            fake_python.write_text(
+                '#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$TEST_CAPTURE_FILE"\n',
+                encoding="utf-8",
+            )
+            fake_python.chmod(0o755)
+            capture = temporary_path / "arguments"
+            personal_source = temporary_path / "personal-workspace.production.env"
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{fake_bin}:{environment['PATH']}",
+                    "TEST_CAPTURE_FILE": str(capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(SOPS_BOOTSTRAP_SCRIPT),
+                    "--platform-env",
+                    str(temporary_path / "platform.env"),
+                    "--personal-workspace-env",
+                    str(personal_source),
+                    "--competency-trainer-env",
+                    str(temporary_path / "competency.env"),
+                    "--auth-api-env",
+                    str(temporary_path / "auth.env"),
+                    "--i18n-env",
+                    str(temporary_path / "i18n.env"),
+                    "--age-recipient",
+                    "age1" + "q" * 58,
+                    "--age-recipient",
+                    "age1" + "p" * 58,
+                ],
+                cwd=ROOT,
+                env=environment,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            source_arguments = capture.read_text(encoding="utf-8").splitlines()
+            self.assertIn(f"personal-workspace={personal_source}", source_arguments)
+            self.assertIn(f"personal-workspace-telegram={personal_source}", source_arguments)
+
     def test_sops_bootstrap_reports_a_missing_option_value_as_usage_error(self) -> None:
         result = subprocess.run(
             ["bash", str(SOPS_BOOTSTRAP_SCRIPT), "--platform-env"],

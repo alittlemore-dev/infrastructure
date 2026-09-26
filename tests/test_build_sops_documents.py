@@ -144,6 +144,8 @@ class BuildSopsDocumentsTest(unittest.TestCase):
             sops_config = (root / ".sops.yaml").read_text(encoding="utf-8")
             self.assertIn("age1" + "q" * 58, sops_config)
             self.assertIn("age1" + "p" * 58, sops_config)
+            self.assertIn("personal\\-workspace/production\\.sops\\.yaml", sops_config)
+            self.assertIn("competency\\-trainer/production\\.sops\\.yaml", sops_config)
 
     def test_missing_required_local_secret_is_rejected_without_exposure(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

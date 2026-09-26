@@ -510,6 +510,8 @@ def prepare(args: argparse.Namespace) -> None:
         stable_file(path, factory)
     stable_file(personal_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
     stable_file(personal_secrets / "sentry_dsn", str, allow_empty=True)
+    stable_file(personal_secrets / "telegram_bot_token", str, allow_empty=True)
+    stable_file(personal_secrets / "telegram_webhook_secret", str, allow_empty=True)
     stable_file(competency_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
     stable_file(competency_secrets / "sentry_dsn", str, allow_empty=True)
     stable_file(auth_api_secrets / "app_secret_key", lambda: random_token(48), mode=0o444)
@@ -548,6 +550,8 @@ def prepare(args: argparse.Namespace) -> None:
         "COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE": str(personal_secrets / "minio_access_key"),
         "COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE": str(personal_secrets / "minio_secret_key"),
         "COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE": str(personal_secrets / "sentry_dsn"),
+        "COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_BOT_TOKEN_FILE": str(personal_secrets / "telegram_bot_token"),
+        "COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_WEBHOOK_SECRET_FILE": str(personal_secrets / "telegram_webhook_secret"),
         "COMPOSE_COMPETENCY_APP_SECRET_KEY_FILE": str(competency_secrets / "app_secret_key"),
         "COMPOSE_COMPETENCY_DB_PASSWORD_FILE": str(competency_secrets / "db_password"),
         "COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE": str(competency_secrets / "minio_access_key"),

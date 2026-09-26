@@ -127,6 +127,7 @@ activate_remote_payload() {
         config/competency-trainer/production.env \
         secrets/platform/production.sops.yaml \
         secrets/personal-workspace/production.sops.yaml \
+        secrets/personal-workspace/telegram.sops.yaml \
         secrets/competency-trainer/production.sops.yaml \
         infra/deploy/runtime-config.manifest.json \
         infra/deploy/runtime-secrets.manifest.json \

@@ -81,6 +81,7 @@ python3 "$script_dir/build_sops_documents.py" \
     --sops-binary "${SOPS_BINARY:-sops}" \
     --source-env "platform=${platform_env}" \
     --source-env "personal-workspace=${personal_workspace_env}" \
+    --source-env "personal-workspace-telegram=${personal_workspace_env}" \
     --source-env "competency-trainer=${competency_trainer_env}" \
     --source-env "auth-api=${auth_api_env}" \
     --source-env "i18n=${i18n_env}" \
