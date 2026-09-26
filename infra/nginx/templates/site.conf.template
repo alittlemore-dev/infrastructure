@@ -315,6 +315,14 @@ server {
         return 404;
     }
 
+    location = /resume-private {
+        return 404;
+    }
+
+    location ^~ /resume-private/ {
+        return 404;
+    }
+
     location = /database-backups {
         return 404;
     }

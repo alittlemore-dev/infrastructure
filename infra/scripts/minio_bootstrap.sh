@@ -28,6 +28,7 @@ mc alias set alittlemore http://minio:9000 "$root_access_key" "$root_secret_key"
 
 mc mb --ignore-existing alittlemore/media
 mc mb --ignore-existing alittlemore/knowledge-private
+mc mb --ignore-existing alittlemore/resume-private
 mc mb --ignore-existing alittlemore/database-backups
 mc mb --ignore-existing alittlemore/auth-avatars
 

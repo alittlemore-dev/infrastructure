@@ -8,7 +8,9 @@
         "arn:aws:s3:::media",
         "arn:aws:s3:::media/*",
         "arn:aws:s3:::knowledge-private",
-        "arn:aws:s3:::knowledge-private/*"
+        "arn:aws:s3:::knowledge-private/*",
+        "arn:aws:s3:::resume-private",
+        "arn:aws:s3:::resume-private/*"
       ]
     }
   ]

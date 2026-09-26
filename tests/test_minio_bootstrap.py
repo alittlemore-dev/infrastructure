@@ -47,6 +47,19 @@ state_path.write_text(json.dumps(state, sort_keys=True))
 
 
 class MinioBootstrapTest(unittest.TestCase):
+    def test_personal_workspace_can_access_its_private_resume_bucket(self) -> None:
+        policy_path = ROOT / "infra/minio/policies/personal-workspace.json"
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        allowed = {
+            resource
+            for statement in policy["Statement"]
+            if statement["Effect"] == "Allow" and "s3:*" in statement["Action"]
+            for resource in statement["Resource"]
+        }
+
+        self.assertIn("arn:aws:s3:::resume-private", allowed)
+        self.assertIn("arn:aws:s3:::resume-private/*", allowed)
+
     def test_bootstrap_can_repeat_without_duplicate_state(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_path = Path(temporary_directory)
@@ -102,6 +115,7 @@ class MinioBootstrapTest(unittest.TestCase):
                     "alittlemore/database-backups",
                     "alittlemore/knowledge-private",
                     "alittlemore/media",
+                    "alittlemore/resume-private",
                 ],
                 sorted(state["buckets"]),
             )
