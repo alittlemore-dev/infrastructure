@@ -61,6 +61,7 @@ x-personal-workspace-backend: &personal-workspace-backend
     APP_DOMAIN: ${APP_DOMAIN}
     APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
+    AUTH_ACCOUNT_SETTINGS_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/internal/account
     AUTH_VERIFY_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/verify
     DB_HOST: personal-workspace-postgres
     DB_PASSWORD_FILE: /run/secrets/db_password
@@ -75,7 +76,6 @@ x-personal-workspace-backend: &personal-workspace-backend
     MINIO_SECURE: "false"
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
-    TELEGRAM_AUTH_API_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/internal/telegram/personal-workspace/settings
     TELEGRAM_SERVICE_SECRET_FILE: /run/secrets/telegram_service_secret
     TELEGRAM_WEBHOOK_SECRET_FILE: /run/secrets/telegram_webhook_secret
     VALKEY_HOST: personal-workspace-valkey
