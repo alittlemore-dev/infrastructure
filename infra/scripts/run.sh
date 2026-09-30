@@ -94,6 +94,15 @@ compose_up_wait() {
         "$@"
 }
 
+verify_target_application_readiness() {
+    python3 "$script_dir/verify_service_health.py" \
+        "$PERSONAL_WORKSPACE_ACTIVE_BACKEND" \
+        "$COMPETENCY_ACTIVE_BACKEND" \
+        "$AUTH_API_ACTIVE_BACKEND" \
+        "$I18N_ACTIVE_BACKEND" \
+        "$FRONTEND_ACTIVE"
+}
+
 prepare_minio_volume_permissions() {
     docker compose build minio minio-bootstrap
     docker compose run \
@@ -300,6 +309,7 @@ stop_previous_slot() {
 }
 
 activate_and_verify_edge() {
+    verify_target_application_readiness || return 1
     edge_replaced=true
     compose_up_wait --no-build --pull never --force-recreate nginx || return 1
     verify_runtime_restart_policies || return 1
@@ -381,6 +391,7 @@ compose_up_wait --no-build --pull never --force-recreate \
     "$AUTH_API_ACTIVE_BACKEND" \
     "$I18N_ACTIVE_BACKEND" \
     "$FRONTEND_ACTIVE"
+verify_target_application_readiness
 sync_certificates
 build_and_validate_candidate_edge
 edge_replaced=false
@@ -393,7 +404,9 @@ fi
 if ! activate_and_verify_edge; then
     trap - HUP INT TERM
     restore_previous_background_processes || true
-    restore_previous_edge || true
+    if [ "$edge_replaced" = true ]; then
+        restore_previous_edge || true
+    fi
     exit 1
 fi
 if ! save_active_slot "$target_slot"; then

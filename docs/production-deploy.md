@@ -482,7 +482,8 @@ Before the edge switch, `make run` must successfully:
 - make all PostgreSQL and Valkey pairs plus the shared MinIO healthy, complete the MinIO bootstrap,
   and start the shared Databasus container (Databasus has no container health probe);
 - run all backend initializers;
-- make all target backends and the shared target frontend healthy;
+- make all target backends and the shared target frontend healthy, independently inspect their
+  runtime health after Compose returns, and recheck it immediately before replacing nginx;
 - start all TaskIQ workers and schedulers.
 
 The certificate helper stages a new release, parses the key and certificate, checks their match,
