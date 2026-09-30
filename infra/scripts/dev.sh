@@ -186,6 +186,7 @@ build_services=(
     i18n-backend-blue
     frontend-blue
     nginx
+    minio-bootstrap
 )
 if ! docker image inspect alittlemore-dev/minio:local >/dev/null 2>&1; then
     build_services+=(minio)

@@ -8,6 +8,7 @@ help:
 	@printf '%-30s %s\n' '  quality' 'Run the complete local/CI quality gate.'
 	@printf '%-30s %s\n' '  tools' 'Resolve or install pinned quality tools.'
 	@printf '%-30s %s\n' '  tests' 'Run all tests, including the SOPS/age round trip.'
+	@printf '%-30s %s\n' '  minio-smoke' 'Build and verify MinIO and its bootstrap with isolated test data.'
 	@printf '%-30s %s\n' '  validate' 'Validate scripts, JSON, manifests, and Compose config.'
 	@printf '%-30s %s\n' '  lint' 'Lint every Dockerfile and shell script.'
 	@printf '%-30s %s\n' '  security-config' 'Scan repository configuration with Trivy.'
@@ -67,6 +68,10 @@ validate:
 	bash infra/scripts/check.sh
 check: validate
 
+.PHONY: minio-smoke
+minio-smoke:
+	bash infra/scripts/minio_smoke.sh
+
 .PHONY: lint lint-dockerfiles
 lint:
 	bash infra/scripts/docker_lint.sh
@@ -105,4 +110,4 @@ secrets-verify:
 		--age-key-file "$(SOPS_AGE_KEY_FILE)"
 
 .PHONY: quality
-quality: tests validate lint security-config
+quality: tests validate lint security-config minio-smoke

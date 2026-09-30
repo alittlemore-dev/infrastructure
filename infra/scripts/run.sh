@@ -95,7 +95,7 @@ compose_up_wait() {
 }
 
 prepare_minio_volume_permissions() {
-    docker compose build minio
+    docker compose build minio minio-bootstrap
     docker compose run \
         --rm \
         --no-deps \

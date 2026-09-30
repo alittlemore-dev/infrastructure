@@ -166,6 +166,7 @@ services:
     container_name: alittlemore_dev_minio
 
   minio-bootstrap:
+    image: alittlemore-dev/minio-bootstrap:local
     container_name: alittlemore_dev_minio_bootstrap
 
   databasus:

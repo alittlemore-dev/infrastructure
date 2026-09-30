@@ -612,7 +612,11 @@ services:
       retries: 12
 
   minio-bootstrap:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    build:
+      context: .
+      dockerfile: infra/minio-mc/Dockerfile
+    image: alittlemore-infra/minio-bootstrap:local
+    pull_policy: never
     container_name: alittlemore_infra_minio_bootstrap
     user: "10003:10003"
     read_only: true

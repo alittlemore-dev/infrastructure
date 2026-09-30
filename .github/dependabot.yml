@@ -27,6 +27,7 @@ updates:
     directories:
       - "/infra/cert-sync"
       - "/infra/minio"
+      - "/infra/minio-mc"
       - "/infra/nginx"
     schedule:
       interval: "weekly"
