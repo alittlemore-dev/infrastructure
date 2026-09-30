@@ -180,21 +180,22 @@ Do not remove plaintext bootstrap sources until the encrypted documents have bee
 committed, and successfully deployed. Keep those sources outside the repository with owner-only
 permissions.
 
-Keep the four configured MinIO access-key identities stable: `MINIO_ROOT_ACCESS_KEY` and
+Keep the five configured MinIO access-key identities stable: `MINIO_ROOT_ACCESS_KEY` and
 `DATABASUS_MINIO_ACCESS_KEY` in the platform document, plus each application's own
-`MINIO_ACCESS_KEY`. Use distinct random values of at least eight characters for their four secret
+`MINIO_ACCESS_KEY`. Use distinct random values of at least eight characters for their five secret
 keys; `make run` rejects duplicate identities, short secrets, and reused secret values.
 
-After the first successful MinIO bootstrap, `make run` stores only SHA-256 fingerprints of all four
-access keys and all four secret keys in the stable, owner-only
+After the first successful MinIO bootstrap, `make run` stores only SHA-256 fingerprints of all five
+access keys and all five secret keys in the stable, owner-only
 `.deploy-state/minio-credentials.sha256` file. Every later run compares the configured credentials
 before pulling images or touching Docker. Any change is rejected instead of creating an unmanaged
 old user or breaking the old application slot or the credential saved in Databasus during a failed
 rollout. MinIO credential rotation is therefore a separate coordinated maintenance operation, not
 part of ordinary deployment; update Databasus' saved S3 destination credential as part of that
-maintenance. A four-line marker produced by the previous deployment code is accepted once when
-its four secret-key fingerprints match, then atomically upgraded to the eight-line format that
-also pins the access-key identities.
+maintenance. An eight-line marker written before Auth API credentials were tracked is accepted
+once only when all eight existing fingerprints match. The older four-line format is accepted
+only when all four previously tracked secret-key fingerprints match. Both formats are atomically
+upgraded to the ten-line format, adding the Auth API credentials without rotating existing keys.
 
 ## Secrets
 
@@ -218,7 +219,7 @@ aliases are passed to applications or retained in the manifest.
 
 At startup, `infra/scripts/compose_secrets.sh` decrypts the manifest documents in memory into an
 owner-only immutable generation, validates their exact keys, normalizes explicitly marked PEM
-values, validates the application PKI, and checks all eight MinIO credential fingerprints. Only
+values, validates the application PKI, and checks all ten MinIO credential fingerprints. Only
 then does it atomically switch the symlink for the inactive blue/green slot. The active slot keeps
 its own generation throughout rollout and rollback, and the old flat `.deploy-state/compose-secrets`
 directory from the pre-SOPS release is deliberately left untouched during the first transition.

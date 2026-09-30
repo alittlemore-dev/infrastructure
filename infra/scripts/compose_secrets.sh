@@ -64,6 +64,8 @@ validate_minio_credentials() {
     local competency_secret_key
     local databasus_access_key
     local databasus_secret_key
+    local auth_api_access_key
+    local auth_api_secret_key
     local secret_key
 
     root_access_key="$(cat "$COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE")"
@@ -74,32 +76,34 @@ validate_minio_credentials() {
     competency_secret_key="$(cat "$COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE")"
     databasus_access_key="$(cat "$COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE")"
     databasus_secret_key="$(cat "$COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE")"
+    auth_api_access_key="$(cat "$COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE")"
+    auth_api_secret_key="$(cat "$COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE")"
 
     require_distinct_values \
         "MinIO access-key identities" \
         "$root_access_key" \
         "$personal_access_key" \
         "$competency_access_key" \
-        "$databasus_access_key"
+        "$databasus_access_key" \
+        "$auth_api_access_key"
     for secret_key in \
         "$root_secret_key" \
         "$personal_secret_key" \
         "$competency_secret_key" \
-        "$databasus_secret_key"; do
+        "$databasus_secret_key" \
+        "$auth_api_secret_key"; do
         if [ "${#secret_key}" -lt 8 ]; then
             echo "Every MinIO secret key must contain at least eight characters." >&2
             return 1
         fi
     done
-    if [ "$root_secret_key" = "$personal_secret_key" ] \
-        || [ "$root_secret_key" = "$competency_secret_key" ] \
-        || [ "$root_secret_key" = "$databasus_secret_key" ] \
-        || [ "$personal_secret_key" = "$competency_secret_key" ] \
-        || [ "$personal_secret_key" = "$databasus_secret_key" ] \
-        || [ "$competency_secret_key" = "$databasus_secret_key" ]; then
-        echo "MinIO secret keys must all be different." >&2
-        return 1
-    fi
+    require_distinct_values \
+        "MinIO secret keys" \
+        "$root_secret_key" \
+        "$personal_secret_key" \
+        "$competency_secret_key" \
+        "$databasus_secret_key" \
+        "$auth_api_secret_key"
 }
 
 validate_auth_api_pki() {
@@ -185,6 +189,7 @@ verify_minio_credential_fingerprints() {
     local legacy_candidate_fingerprints="$2"
     local fingerprint_marker="$3"
     local active_slot_marker="$4"
+    local legacy_format
 
     if ! python3 "${repo_dir}/infra/scripts/minio_credential_fingerprints.py" \
         >"$candidate_fingerprints"; then
@@ -211,13 +216,15 @@ verify_minio_credential_fingerprints() {
         printf '%s\n' current
         return
     fi
-    if python3 "${repo_dir}/infra/scripts/minio_credential_fingerprints.py" \
-        --legacy-secret-keys-only >"$legacy_candidate_fingerprints" \
-        && chmod 600 "$legacy_candidate_fingerprints" \
-        && cmp -s "$legacy_candidate_fingerprints" "$fingerprint_marker"; then
-        printf '%s\n' legacy
-        return
-    fi
+    for legacy_format in --legacy-without-auth-api --legacy-secret-keys-only; do
+        if python3 "${repo_dir}/infra/scripts/minio_credential_fingerprints.py" \
+            "$legacy_format" >"$legacy_candidate_fingerprints" \
+            && chmod 600 "$legacy_candidate_fingerprints" \
+            && cmp -s "$legacy_candidate_fingerprints" "$fingerprint_marker"; then
+            printf '%s\n' legacy
+            return
+        fi
+    done
     echo "MinIO credential rotation is not supported during make run." >&2
     echo "Keep the existing MinIO access and secret keys or perform a coordinated maintenance rotation." >&2
     return 1

@@ -7,7 +7,7 @@ import os
 import sys
 
 
-SECRET_FILES = (
+PRE_AUTH_API_SECRET_FILES = (
     ("MINIO_ROOT_ACCESS_KEY", "COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE"),
     ("MINIO_ROOT_SECRET_KEY", "COMPOSE_MINIO_ROOT_SECRET_KEY_FILE"),
     ("PERSONAL_WORKSPACE_MINIO_ACCESS_KEY", "COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE"),
@@ -16,6 +16,9 @@ SECRET_FILES = (
     ("COMPETENCY_MINIO_SECRET_KEY", "COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE"),
     ("DATABASUS_MINIO_ACCESS_KEY", "COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE"),
     ("DATABASUS_MINIO_SECRET_KEY", "COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE"),
+)
+
+SECRET_FILES = PRE_AUTH_API_SECRET_FILES + (
     ("AUTH_API_MINIO_ACCESS_KEY", "COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE"),
     ("AUTH_API_MINIO_SECRET_KEY", "COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE"),
 )
@@ -32,10 +35,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Hash MinIO identities without exposing their values."
     )
-    parser.add_argument(
+    legacy_format = parser.add_mutually_exclusive_group()
+    legacy_format.add_argument(
         "--legacy-secret-keys-only",
         action="store_true",
         help="render the four-line marker written before access keys were pinned",
+    )
+    legacy_format.add_argument(
+        "--legacy-without-auth-api",
+        action="store_true",
+        help="render the eight-line marker written before auth-api credentials were tracked",
     )
     return parser.parse_args()
 
@@ -47,6 +56,8 @@ def main() -> int:
         selected_files = tuple(
             item for item in SECRET_FILES if item[0] in LEGACY_SECRET_NAMES
         )
+    elif args.legacy_without_auth_api:
+        selected_files = PRE_AUTH_API_SECRET_FILES
     for name, file_variable in selected_files:
         secret_path = os.environ.get(file_variable)
         if secret_path is None:
