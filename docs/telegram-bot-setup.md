@@ -15,10 +15,10 @@ page calls both services; Personal Workspace reads the switch through a protecte
    `secrets/personal-workspace/telegram.sops.yaml` and
    `secrets/auth-api/production.sops.yaml`. The two services receive it as a Docker secret.
 4. Run `make secrets-verify SOPS_AGE_KEY_FILE=/absolute/path/to/age-key`, `make validate`, and
-   the normal release checks before deployment. After startup the bot registers
-   `https://<APP_DOMAIN>/api/personal-workspace/telegram/webhook` in the background,
-   with a bounded timeout and retries. Its runtime status remains `connecting` or
-   `failed` until registration succeeds and becomes `ready`.
+   the normal release checks before deployment. `TELEGRAM_DELIVERY_MODE=polling` is configured
+   for production; startup removes the registered webhook without dropping queued updates
+   and receives commands through the outbound proxy pool. The API starts independently of
+   Telegram, and the bot becomes `ready` after its first successful update request.
 5. In web settings, enable the bot, create a single-use invitation, and approve the pending
    connection after the participant opens the link in a private chat.
 
@@ -38,6 +38,40 @@ preferences are unchanged. The public `/api/personal-workspace/internal/` subtre
 Local development keeps `TELEGRAM_AVAILABLE=false`, generates one shared service credential,
 and creates empty bot token and webhook secret files plus a `[]` proxy list. A real local webhook needs a reachable
 HTTPS endpoint; Telegram cannot deliver webhooks to `*.localhost`.
+
+## Update delivery mode
+
+Set the required `TELEGRAM_DELIVERY_MODE` in `config/personal-workspace/production.env`:
+
+- `polling`: receive messages with `getUpdates` through the existing proxy pool. No incoming
+  Telegram connection to the server is needed. The registered webhook is removed with
+  `drop_pending_updates=false`; the endpoint and its secret remain available for switching back.
+- `webhook`: register `https://<APP_DOMAIN>/api/personal-workspace/telegram/webhook` in the
+  background and receive HTTPS POST requests. The public endpoint must be reachable from Telegram.
+
+The modes use the same dispatcher, invitations, connections, preferences, and outgoing clients.
+Switch modes by changing this non-secret value and releasing/deploying normally; no SOPS update
+or new proxy is required. Telegram permits only one delivery mode at a time.
+
+One expiring, bot-wide Valkey lease controls polling and webhook registration across both
+deployment slots and API processes. A standby does not alter Telegram delivery configuration.
+The old slot retains ownership while draining; the new slot starts delivery after the old
+owner stops or its lease expires. Standby shutdown cannot withdraw the owner's readiness.
+Loss of ownership or Valkey connectivity cancels polling. Telegram settings and outgoing jobs
+remain blocked until the selected slot has a fresh readiness lease.
+
+Polling processes updates sequentially and advances `offset` after a handler attempt settles.
+Handler failures are logged and acknowledged to avoid replaying committed work or uncertain
+outbound replies; the user can retry a failed action explicitly. An outbound transport failure
+pauses the remaining, unhandled batch until route recovery. Unconfirmed updates may be delivered
+again after a crash; domain idempotency rules still apply.
+The receiver retries network errors through the proxy pool and preserves its offset across
+route changes. Rate limits wait for Telegram's `retry_after`; ordinary sends are never replayed
+by the transport. [Telegram update delivery](https://core.telegram.org/bots/api#getupdates).
+
+Logs are emitted by the active `personal_workspace_backend_blue` or
+`personal_workspace_backend_green` container. Use `docker logs --since 30m -f <container>`;
+nginx logs incoming Telegram requests only in webhook mode.
 
 ## External Telegram proxy list
 
@@ -77,12 +111,14 @@ because Telegram may have accepted it before the connection failed.
 
 After activation, verify outbound connectivity from the configured service using
 [`getMe`](https://core.telegram.org/bots/api#getme), then send a test message to a chat controlled
-by the operator through the service's normal bot flow. Check
+by the operator through the service's normal bot flow. In webhook mode, check
 [`getWebhookInfo`](https://core.telegram.org/bots/api#getwebhookinfo) separately: confirm the
 public webhook URL, send an incoming bot command, and verify delivery rather than only successful
 registration. Inspect pending updates and recent delivery errors without publishing tokens,
 proxy URLs, or private chat details. A working outbound proxy does not prove the inbound
 HTTPS route works.
+In polling mode, `getWebhookInfo.url` must be empty. Send `/start` via an invitation and
+confirm the pending connection in the web settings; no incoming nginx request is expected.
 
 To return to direct access, set `TELEGRAM_PROXY_URLS='[]'` in the private bootstrap source,
 re-encrypt with the same inputs, and perform the normal authorized release. An empty string

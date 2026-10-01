@@ -30,6 +30,7 @@ class TelegramProxyContractTest(unittest.TestCase):
         for role in ("backend", "taskiq-worker", "taskiq-scheduler"):
             for slot in ("blue", "green"):
                 service = compose["services"][f"personal-workspace-{role}-{slot}"]
+                self.assertEqual("polling", service["environment"]["TELEGRAM_DELIVERY_MODE"])
                 self.assertEqual(
                     "/run/secrets/telegram_proxy_urls",
                     service["environment"]["TELEGRAM_PROXY_URLS_FILE"],
