@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from secret_policy import allows_missing_secret
+
 
 AGE_RECIPIENT_PATTERN = re.compile(r"^age1[0-9a-z]{58}$")
 SOURCE_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -211,7 +213,7 @@ def build_documents(args: argparse.Namespace) -> None:
                 "composeVariable",
                 "allowEmpty",
             }
-            optional_fields = {"encoding"}
+            optional_fields = {"encoding", "allowMissing"}
             if (
                 not isinstance(spec, dict)
                 or not required_fields <= set(spec)
@@ -226,9 +228,10 @@ def build_documents(args: argparse.Namespace) -> None:
                 raise ValueError(f"{document_name}.{native_name}.allowEmpty must be boolean.")
             if spec.get("encoding") not in (None, "pem"):
                 raise ValueError(f"{document_name}.{native_name}.encoding is not supported.")
-            if native_name not in source_values:
+            allow_missing = allows_missing_secret(document_name, spec)
+            if native_name not in source_values and not allow_missing:
                 raise ValueError(f"Missing secret in local source: {document_name}.{native_name}")
-            value = source_values[native_name]
+            value = source_values.get(native_name, "[]" if allow_missing else "")
             if not value and not allow_empty:
                 raise ValueError(f"Empty required secret in local source: {document_name}.{native_name}")
             native_values[native_name] = value

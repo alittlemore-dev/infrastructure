@@ -60,6 +60,10 @@ class SopsIntegrationTest(unittest.TestCase):
                 }
                 for document in manifest["documents"]
             }
+            scoped_values["personal-workspace-telegram"]["TELEGRAM_PROXY_URLS"] = json.dumps([
+                "socks5://test-user:test-pass@proxy.example.test:1080",
+                "http://test-user:p%40ss%3Aword@proxy.example.test:8080",
+            ])
             source_arguments: list[str] = []
             for document_name, values in scoped_values.items():
                 source_path = sandbox / f"{document_name}.env"
@@ -134,6 +138,35 @@ class SopsIntegrationTest(unittest.TestCase):
                         scoped_values[document["name"]][secret["name"]],
                         (runtime_dir / secret["target"]).read_text(encoding="utf-8"),
                     )
+
+            telegram_document = next(
+                document for document in manifest["documents"]
+                if document["name"] == "personal-workspace-telegram"
+            )
+            for omitted in ("TELEGRAM_PROXY_URLS", "TELEGRAM_SERVICE_SECRET"):
+                legacy_values = dict(scoped_values["personal-workspace-telegram"])
+                del legacy_values[omitted]
+                encrypted_legacy = subprocess.run(
+                    [SOPS_BINARY, "--config", "/dev/null", "encrypt", "--age", ",".join(recipients),
+                     "--input-type", "json", "--output-type", "yaml", "/dev/stdin"],
+                    input=json.dumps(legacy_values), capture_output=True, text=True,
+                    check=False, timeout=30,
+                )
+                self.assertEqual(0, encrypted_legacy.returncode, encrypted_legacy.stderr)
+                (root / telegram_document["path"]).write_text(encrypted_legacy.stdout)
+                legacy_materialize = subprocess.run(
+                    materialize.args, cwd=ROOT, capture_output=True,
+                    text=True, check=False, timeout=30,
+                )
+                if omitted == "TELEGRAM_PROXY_URLS":
+                    self.assertEqual(0, legacy_materialize.returncode, legacy_materialize.stderr)
+                else:
+                    self.assertNotEqual(0, legacy_materialize.returncode)
+                    self.assertIn("TELEGRAM_SERVICE_SECRET", legacy_materialize.stderr)
+                self.assertEqual("", (runtime_dir / "personal-workspace/telegram_proxy_urls").read_text())
+                for value in scoped_values["personal-workspace-telegram"].values():
+                    if value:
+                        self.assertNotIn(value, legacy_materialize.stdout + legacy_materialize.stderr)
 
 
 if __name__ == "__main__":

@@ -47,6 +47,8 @@ case "$action" in
         # shellcheck source=infra/scripts/compose_secrets.sh
         . "$script_dir/compose_secrets.sh"
         load_environment
+        # Image builds/scans render Compose but never start or route application backends.
+        export PERSONAL_WORKSPACE_ACTIVE_BACKEND="${PERSONAL_WORKSPACE_ACTIVE_BACKEND:-personal-workspace-backend-blue}"
         prepare_compose_secret_files scan
         docker compose build
         images=()

@@ -1,5 +1,34 @@
 #!/usr/bin/env bash
 
+verify_private_telegram_routes() {
+    local hostname="$1"
+    local ca_certificate="${2:-}"
+    local path
+    local status
+    local -a curl_options=(--silent)
+    if [ -n "$ca_certificate" ]; then
+        curl_options+=(--cacert "$ca_certificate")
+    fi
+    for path in \
+        /api/personal-workspace/internal/telegram/status \
+        /api/personal-workspace/internal/telegram/status?probe=1 \
+        /api/personal-workspace/internal/unknown; do
+        status="$(curl \
+            --show-error \
+            --output /dev/null \
+            --write-out '%{http_code}' \
+            --max-time 5 \
+            --noproxy '*' \
+            "${curl_options[@]}" \
+            --resolve "${hostname}:443:127.0.0.1" \
+            "https://${hostname}${path}")" || return 1
+        if [ "$status" != 404 ]; then
+            echo "Private Telegram route returned ${status}, expected 404: ${path}" >&2
+            return 1
+        fi
+    done
+}
+
 verify_served_edge_certificates() {
     local repository_directory="$1"
     local hostname
@@ -90,6 +119,8 @@ smoke_edge_applications() {
         "/api/personal-workspace/i18n/languages"
         "/api/personal-workspace/i18n/bundles/ru"
     )
+
+    verify_private_telegram_routes "$APP_DOMAIN" || return 1
 
     for check in "${checks[@]}"; do
         hostname="${check%%|*}"

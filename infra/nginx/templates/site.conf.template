@@ -163,6 +163,10 @@ server {
         proxy_pass http://personal_workspace_backend/api/docs;
     }
 
+    location ^~ /api/personal-workspace/internal/ {
+        return 404;
+    }
+
     location ^~ /api/personal-workspace/ {
         limit_req zone=personal_api_per_ip burst=120 nodelay;
         proxy_redirect ~^https?://[^/]+/api/(.*)$ $scheme://$host/api/personal-workspace/$1;

@@ -76,6 +76,7 @@ x-personal-workspace-backend: &personal-workspace-backend
     MINIO_SECURE: "false"
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
+    TELEGRAM_PROXY_URLS_FILE: /run/secrets/telegram_proxy_urls
     TELEGRAM_SERVICE_SECRET_FILE: /run/secrets/telegram_service_secret
     TELEGRAM_WEBHOOK_SECRET_FILE: /run/secrets/telegram_webhook_secret
     VALKEY_HOST: personal-workspace-valkey
@@ -93,6 +94,8 @@ x-personal-workspace-backend: &personal-workspace-backend
       target: sentry_dsn
     - source: personal_workspace_telegram_bot_token
       target: telegram_bot_token
+    - source: personal_workspace_telegram_proxy_urls
+      target: telegram_proxy_urls
     - source: personal_workspace_telegram_service_secret
       target: telegram_service_secret
     - source: personal_workspace_telegram_webhook_secret
@@ -165,6 +168,7 @@ x-auth-api-backend: &auth-api-backend
     MINIO_SECURE: "false"
     SENTRY_DSN_FILE: /run/secrets/sentry_dsn
     TELEGRAM_SERVICE_SECRET_FILE: /run/secrets/telegram_service_secret
+    TELEGRAM_PERSONAL_WORKSPACE_STATUS_URL: http://${PERSONAL_WORKSPACE_ACTIVE_BACKEND:?active Personal Workspace backend is required}:8080/api/internal/telegram/status
     VALKEY_HOST: auth-api-valkey
     VALKEY_PORT: 6379
   secrets: &auth-api-backend-secrets
@@ -911,6 +915,8 @@ secrets:
     file: ${COMPOSE_PERSONAL_WORKSPACE_SENTRY_DSN_FILE:?prepare Compose secrets first}
   personal_workspace_telegram_bot_token:
     file: ${COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_BOT_TOKEN_FILE:?prepare Compose secrets first}
+  personal_workspace_telegram_proxy_urls:
+    file: ${COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_PROXY_URLS_FILE:?prepare Compose secrets first}
   personal_workspace_telegram_service_secret:
     file: ${COMPOSE_PERSONAL_WORKSPACE_TELEGRAM_SERVICE_SECRET_FILE:?prepare Compose secrets first}
   personal_workspace_telegram_webhook_secret:

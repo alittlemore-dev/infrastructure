@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from render_runtime_config import quote_env_value, write_private_file
+from secret_policy import allows_missing_secret
 
 
 VARIABLE_NAME_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -192,7 +193,7 @@ def materialize(args: argparse.Namespace) -> None:
                     "composeVariable",
                     "allowEmpty",
                 }
-                optional_fields = {"encoding"}
+                optional_fields = {"encoding", "allowMissing"}
                 if (
                     not isinstance(raw_spec, dict)
                     or not allowed_fields <= set(raw_spec)
@@ -200,7 +201,7 @@ def materialize(args: argparse.Namespace) -> None:
                 ):
                     raise ValueError(
                         f"{document_name} secret specs must contain name, target, "
-                        "composeVariable, allowEmpty, and optional encoding."
+                        "composeVariable, allowEmpty, and optional encoding or allowMissing."
                     )
                 name = require_string(raw_spec["name"], f"{document_name} secret name")
                 target = require_string(raw_spec["target"], f"{document_name}.{name} target")
@@ -219,6 +220,7 @@ def materialize(args: argparse.Namespace) -> None:
                     raise ValueError(f"{document_name}.{name}.allowEmpty must be boolean.")
                 if encoding not in (None, "pem"):
                     raise ValueError(f"{document_name}.{name}.encoding is not supported.")
+                allow_missing = allows_missing_secret(document_name, raw_spec)
                 if name in expected_names:
                     raise ValueError(f"{document_name} declares {name} more than once.")
                 if compose_variable in compose_paths:
@@ -226,9 +228,9 @@ def materialize(args: argparse.Namespace) -> None:
                 expected_names.add(name)
                 seen_targets.add(target)
 
-                if name not in values:
+                if name not in values and not allow_missing:
                     raise ValueError(f"{document_name} is missing secret: {name}")
-                value = normalize_secret_value(values[name], encoding)
+                value = normalize_secret_value(values.get(name, ""), encoding)
                 if not value and not allow_empty:
                     raise ValueError(f"{document_name}.{name} must not be empty.")
                 write_secret_file(staging_dir / target, value)

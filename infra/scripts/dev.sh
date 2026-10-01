@@ -16,6 +16,8 @@ readonly wait_timeout_seconds=180
 
 # shellcheck source=infra/scripts/common.sh
 . "${script_dir}/common.sh"
+# shellcheck source=infra/scripts/edge_checks.sh
+. "${script_dir}/edge_checks.sh"
 
 compose() {
     docker compose \
@@ -93,6 +95,8 @@ smoke_local_edge() {
         "/api/personal-workspace/i18n/languages"
         "/api/personal-workspace/i18n/bundles/ru"
     )
+
+    verify_private_telegram_routes alittlemore.localhost "$ca_certificate" || return 1
 
     for check in "${checks[@]}"; do
         hostname="${check%%|*}"

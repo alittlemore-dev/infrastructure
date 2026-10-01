@@ -91,10 +91,15 @@ class DevStateTest(unittest.TestCase):
             self.assertEqual(0, first.returncode, first.stderr)
             telegram_secret_paths = (
                 state_dir / "secrets/personal-workspace/telegram_bot_token",
+                state_dir / "secrets/personal-workspace/telegram_proxy_urls",
                 state_dir / "secrets/personal-workspace/telegram_webhook_secret",
             )
             self.assertTrue(all(path.is_file() for path in telegram_secret_paths))
-            self.assertTrue(all(path.read_text(encoding="utf-8") == "" for path in telegram_secret_paths))
+            for path in telegram_secret_paths:
+                self.assertEqual(
+                    "[]" if path.name == "telegram_proxy_urls" else "",
+                    path.read_text(encoding="utf-8"),
+                )
             self.assertTrue(
                 (state_dir / "secrets/auth-api/telegram_service_secret").read_text(encoding="utf-8")
             )
@@ -410,6 +415,20 @@ class DevComposeTest(unittest.TestCase):
             "alittlemore.localhost",
             services["personal-workspace-backend-blue"]["environment"]["APP_DOMAIN"],
         )
+        personal_backend = services["personal-workspace-backend-blue"]
+        self.assertEqual("[]", personal_backend["environment"]["TELEGRAM_PROXY_URLS"])
+        for service_name in (
+            "personal-workspace-backend-blue", "personal-workspace-taskiq-worker-blue",
+            "personal-workspace-taskiq-scheduler-blue",
+        ):
+            service = services[service_name]
+            self.assertEqual(
+                "/run/secrets/telegram_proxy_urls", service["environment"]["TELEGRAM_PROXY_URLS_FILE"],
+            )
+            self.assertIn(
+                {"source": "personal_workspace_telegram_proxy_urls", "target": "telegram_proxy_urls"},
+                service["secrets"],
+            )
         self.assertIn("i18n-network", services["frontend-blue"]["networks"])
         self.assertEqual(
             "http://i18n-backend-blue:8080",
@@ -420,6 +439,10 @@ class DevComposeTest(unittest.TestCase):
         self.assertNotIn("AUTH_PUBLIC_KEY", competency_backend["environment"])
         auth_backend = services["auth-api-backend-blue"]
         self.assertEqual("alittlemore.localhost", auth_backend["environment"]["APP_DOMAIN"])
+        self.assertEqual(
+            "http://personal-workspace-backend-blue:8080/api/internal/telegram/status",
+            auth_backend["environment"]["TELEGRAM_PERSONAL_WORKSPACE_STATUS_URL"],
+        )
         self.assertEqual("minio", auth_backend["environment"]["MINIO_HOST"])
         self.assertEqual("auth-avatars", auth_backend["environment"]["MINIO_BUCKET"])
         self.assertIn("auth-api-network", services["minio"]["networks"])

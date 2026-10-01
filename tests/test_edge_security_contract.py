@@ -14,6 +14,37 @@ SSH_CONFIGURE_SCRIPT = ROOT / "infra/scripts/deploy_configure_ssh.sh"
 
 
 class EdgeSecurityContractTest(unittest.TestCase):
+    def test_nginx_blocks_internal_telegram_subtree_before_the_public_proxy(self) -> None:
+        result = subprocess.run(
+            ["python3", str(ROOT / "infra/scripts/test_telegram_edge.py")],
+            capture_output=True, text=True, check=False, timeout=130,
+        )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def run_private_route_probe(self, status: int) -> subprocess.CompletedProcess[str]:
+        script = '''set -euo pipefail
+source "$1"
+curl() { printf '%s' "$TEST_STATUS"; printf '%s\\n' "$*" >> "$TEST_CAPTURE"; }
+verify_private_telegram_routes app.example.test
+'''
+        with tempfile.TemporaryDirectory() as temporary:
+            capture = Path(temporary) / "calls"
+            environment = dict(os.environ, TEST_STATUS=str(status), TEST_CAPTURE=str(capture))
+            result = subprocess.run(
+                ["bash", "-c", script, "edge-test", str(ROOT / "infra/scripts/edge_checks.sh")],
+                env=environment, capture_output=True, text=True, check=False, timeout=5,
+            )
+            if status == 404:
+                self.assertEqual(3, len(capture.read_text().splitlines()))
+        return result
+
+    def test_runtime_probe_accepts_only_hidden_internal_routes(self) -> None:
+        self.assertEqual(0, self.run_private_route_probe(404).returncode)
+        for status in (200, 401, 403, 500):
+            result = self.run_private_route_probe(status)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("expected 404", result.stderr)
+
     def test_sops_bootstrap_reuses_personal_workspace_source_for_telegram(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_path = Path(temporary_directory)

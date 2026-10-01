@@ -74,6 +74,8 @@ require_docker_compose
 require_command openssl
 acquire_runtime_lock
 load_environment
+# This context renders Compose for cert-sync/certbot only; it never starts app backends.
+export PERSONAL_WORKSPACE_ACTIVE_BACKEND="${PERSONAL_WORKSPACE_ACTIVE_BACKEND:-personal-workspace-backend-blue}"
 prepare_compose_secret_files maintenance
 
 case "$action" in
