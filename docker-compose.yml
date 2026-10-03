@@ -513,6 +513,7 @@ services:
       SSR_API_ORIGIN: http://competency-backend-blue:8080
       SSR_I18N_ORIGIN: http://i18n-backend-blue:8080
       SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${APP_DOMAIN}
+      API_SCHEMA_ORIGIN: http://nginx:18084
       NG_ALLOWED_HOSTS: ${APP_DOMAIN}
     healthcheck: *frontend-healthcheck
 
@@ -530,6 +531,7 @@ services:
       SSR_API_ORIGIN: http://competency-backend-green:8080
       SSR_I18N_ORIGIN: http://i18n-backend-green:8080
       SSR_PUBLIC_ORIGIN: ${APP_URL_SCHEMA}://${APP_DOMAIN}
+      API_SCHEMA_ORIGIN: http://nginx:18084
       NG_ALLOWED_HOSTS: ${APP_DOMAIN}
     healthcheck: *frontend-healthcheck
 

@@ -128,6 +128,9 @@ and translates the namespaced public paths before forwarding them:
 - `/api/personal-workspace/<path>` becomes `/api/<path>` on Personal Workspace;
 - `/api/competency/<path>` becomes `/api/<path>` on Competency Trainer;
 - `/api/auth/<path>` is forwarded unchanged to Auth API (including login, account, admin, docs and health checks);
+- `/api/i18n/<path>` is forwarded unchanged to the localization service;
+- `/api/docs` and its assets are served by the frontend Node runtime;
+- `/api/openapi.json` serves the combined OpenAPI 3.1 specification with external service prefixes;
 - `/healthz` checks the edge itself;
 - unknown `/api/*` paths return `404` and are never sent to the frontend.
 
@@ -136,6 +139,13 @@ The gateway also rewrites backend redirects back into the public namespace. `/si
 origin because S3 URL/signature semantics do not fit the application path router.
 `agent.alittlemore.dev` remains a closed public TLS contour and the corresponding Agent API is
 exposed only on the VPN-bound mTLS port `18083`.
+
+The frontend reads the four service schemas through `API_SCHEMA_ORIGIN=http://nginx:18084`.
+This Docker-internal listener allows only schema GET/HEAD requests and has no published host port.
+It follows the same active upstreams as public requests. The combined schema refreshes on demand
+after 30 seconds; a failed source returns `503` rather than a partial specification. Swagger uses
+locally served assets, and authenticated user operations require a PASETO bearer token. Administrative
+and internal operations remain excluded from the public specification.
 
 Infrastructure dependencies use fixed tags or digests in `docker-compose.yml` and their owning
 Dockerfiles. Locally built MinIO, MinIO client, nginx, and certificate-sync images use stable local

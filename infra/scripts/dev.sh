@@ -69,6 +69,9 @@ smoke_local_edge() {
     local rendered_page
     local -a checks=(
         "alittlemore.localhost|/healthz"
+        "alittlemore.localhost|/api/docs"
+        "alittlemore.localhost|/api/docs/swagger-ui-bundle.js"
+        "alittlemore.localhost|/api/openapi.json"
         "alittlemore.localhost|/ru/how-this-site-is-built"
         "alittlemore.localhost|/api/personal-workspace/healthcheck"
         "alittlemore.localhost|/api/competency/healthcheck"

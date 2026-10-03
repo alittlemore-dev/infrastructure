@@ -94,6 +94,9 @@ smoke_edge_applications() {
     local rendered_page
     local -a checks=(
         "${APP_DOMAIN}|/healthz"
+        "${APP_DOMAIN}|/api/docs"
+        "${APP_DOMAIN}|/api/docs/swagger-ui-bundle.js"
+        "${APP_DOMAIN}|/api/openapi.json"
         "${APP_DOMAIN}|/ru/how-this-site-is-built"
         "${APP_DOMAIN}|/api/personal-workspace/healthcheck"
         "${APP_DOMAIN}|/api/competency/healthcheck"
