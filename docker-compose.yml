@@ -513,7 +513,7 @@ services:
     healthcheck: *frontend-healthcheck
 
   personal-workspace-postgres:
-    image: postgres:18.4-alpine
+    image: postgres:18.6-alpine
     container_name: personal_workspace_postgres
     user: "70:70"
     restart: unless-stopped
@@ -646,7 +646,7 @@ services:
         condition: service_healthy
 
   competency-postgres:
-    image: postgres:18.4-alpine
+    image: postgres:18.6-alpine
     container_name: competency_trainer_postgres
     user: "70:70"
     restart: unless-stopped
@@ -683,7 +683,7 @@ services:
       retries: 12
 
   auth-api-postgres:
-    image: postgres:18.4-alpine
+    image: postgres:18.6-alpine
     container_name: auth_api_postgres
     user: "70:70"
     restart: unless-stopped
@@ -721,7 +721,7 @@ services:
       retries: 12
 
   databasus:
-    image: databasus/databasus:v3.57.2
+    image: databasus/databasus:v3.60.0
     container_name: alittlemore_infra_databasus
     restart: unless-stopped
     volumes:
