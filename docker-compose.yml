@@ -62,7 +62,7 @@ x-personal-workspace-backend: &personal-workspace-backend
     APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
     AUTH_ACCOUNT_SETTINGS_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/internal/account
-    AUTH_VERIFY_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/verify
+    AUTH_VERIFY_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/verify/v2
     DB_HOST: personal-workspace-postgres
     DB_PASSWORD_FILE: /run/secrets/db_password
     DB_PORT: 5432
@@ -109,13 +109,10 @@ x-competency-backend: &competency-backend
   env_file:
     - ${COMPETENCY_ENV_FILE:-./config/competency-trainer/production.env}
   environment: &competency-backend-environment
-    AGENT_ACCESS_CERTIFICATE_CHAIN_FILE: /run/secrets/agent_certificate_chain
-    AGENT_ACCESS_ISSUING_CERTIFICATE_FILE: /run/secrets/agent_issuing_certificate
-    AGENT_ACCESS_ISSUING_PRIVATE_KEY_FILE: /run/secrets/agent_issuing_private_key
     APP_DOMAIN: ${APP_DOMAIN}
     APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
     APP_URL_SCHEMA: ${APP_URL_SCHEMA}
-    AUTH_VERIFY_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/verify
+    AUTH_VERIFY_URL: http://${AUTH_API_ACTIVE_BACKEND:-auth-api-backend-blue}:8080/api/auth/verify/v2
     DB_HOST: competency-postgres
     DB_PASSWORD_FILE: /run/secrets/db_password
     DB_PORT: 5432
@@ -192,24 +189,6 @@ x-auth-api-backend: &auth-api-backend
 x-auth-api-healthcheck: &auth-api-healthcheck
   <<: *backend-healthcheck
   test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/auth/healthcheck/ready', timeout=3).close()"]
-
-x-competency-agent-secrets: &competency-agent-secrets
-  - source: competency_app_secret_key
-    target: app_secret_key
-  - source: competency_db_password
-    target: db_password
-  - source: competency_minio_access_key
-    target: minio_access_key
-  - source: competency_minio_secret_key
-    target: minio_secret_key
-  - source: competency_sentry_dsn
-    target: sentry_dsn
-  - source: competency_agent_issuing_certificate
-    target: agent_issuing_certificate
-  - source: competency_agent_issuing_private_key
-    target: agent_issuing_private_key
-  - source: competency_agent_certificate_chain
-    target: agent_certificate_chain
 
 x-i18n-backend: &i18n-backend
   <<: *backend-runtime
@@ -329,7 +308,6 @@ services:
     <<: *competency-backend
     container_name: competency_trainer_backend_blue
     command: bash start_application.sh run
-    secrets: *competency-agent-secrets
     depends_on:
       competency-postgres:
         condition: service_healthy
@@ -346,7 +324,6 @@ services:
     <<: *competency-backend
     container_name: competency_trainer_backend_green
     command: bash start_application.sh run
-    secrets: *competency-agent-secrets
     depends_on:
       competency-postgres:
         condition: service_healthy
@@ -782,9 +759,6 @@ services:
     volumes:
       - ./infra/nginx/certs:/certs:ro
       - certbot_www:/var/www/certbot:ro
-    secrets:
-      - source: competency_agent_certificate_chain
-        target: agent_client_ca_certificate
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
       PERSONAL_WORKSPACE_ACTIVE_BACKEND: ${PERSONAL_WORKSPACE_ACTIVE_BACKEND:-personal-workspace-backend-blue}
@@ -803,7 +777,6 @@ services:
       - "443:8443"
       - "${VPN_BIND_ADDRESS}:18081:18081"
       - "${VPN_BIND_ADDRESS}:18082:18082"
-      - "${VPN_BIND_ADDRESS}:18083:18083"
     depends_on:
       minio-bootstrap:
         condition: service_completed_successfully
@@ -935,12 +908,6 @@ secrets:
     file: ${COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
   competency_sentry_dsn:
     file: ${COMPOSE_COMPETENCY_SENTRY_DSN_FILE:?prepare Compose secrets first}
-  competency_agent_issuing_certificate:
-    file: ${COMPOSE_COMPETENCY_AGENT_ISSUING_CERTIFICATE_FILE:?prepare Compose secrets first}
-  competency_agent_issuing_private_key:
-    file: ${COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE:?prepare Compose secrets first}
-  competency_agent_certificate_chain:
-    file: ${COMPOSE_COMPETENCY_AGENT_CERTIFICATE_CHAIN_FILE:?prepare Compose secrets first}
   auth_api_app_secret_key:
     file: ${COMPOSE_AUTH_API_APP_SECRET_KEY_FILE:?prepare Compose secrets first}
 

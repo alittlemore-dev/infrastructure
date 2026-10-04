@@ -187,8 +187,21 @@ def build_documents(args: argparse.Namespace) -> None:
     encrypted_paths: list[str] = []
     document_names: set[str] = set()
     for document in documents:
-        if not isinstance(document, dict) or set(document) != {"name", "path", "secrets"}:
-            raise ValueError("Every secret document must contain name, path, and secrets.")
+        required_fields = {"name", "path", "secrets"}
+        if (
+            not isinstance(document, dict)
+            or not required_fields <= set(document)
+            or set(document) - required_fields - {"retiredSecrets"}
+        ):
+            raise ValueError("Every document requires name, path, secrets, and optional retiredSecrets.")
+        retired_names = document.get("retiredSecrets", [])
+        if (
+            not isinstance(retired_names, list)
+            or any(not isinstance(name, str) or VARIABLE_NAME_PATTERN.fullmatch(name) is None
+                   for name in retired_names)
+            or len(set(retired_names)) != len(retired_names)
+        ):
+            raise ValueError("retiredSecrets must contain unique valid secret names.")
         document_name = document["name"]
         relative_path = document["path"]
         specs = document["secrets"]
@@ -222,6 +235,8 @@ def build_documents(args: argparse.Namespace) -> None:
                 raise ValueError(f"{document_name} contains an invalid secret specification.")
             native_name = spec["name"]
             allow_empty = spec["allowEmpty"]
+            if native_name in retired_names:
+                raise ValueError(f"{document_name} marks an active secret as retired: {native_name}")
             if not isinstance(native_name, str):
                 raise ValueError(f"{document_name} contains an invalid secret name.")
             if not isinstance(allow_empty, bool):

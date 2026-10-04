@@ -137,8 +137,6 @@ and translates the namespaced public paths before forwarding them:
 The gateway also rewrites backend redirects back into the public namespace. `/sitemap.xml` and
 `/robots.txt` remain served by Competency Trainer. `s3.alittlemore.dev` stays a separate storage
 origin because S3 URL/signature semantics do not fit the application path router.
-`agent.alittlemore.dev` remains a closed public TLS contour and the corresponding Agent API is
-exposed only on the VPN-bound mTLS port `18083`.
 
 The frontend reads the four service schemas through `API_SCHEMA_ORIGIN=http://nginx:18084`.
 This Docker-internal listener allows only schema GET/HEAD requests and has no published host port.
@@ -252,11 +250,7 @@ together in its encrypted document and validated for algorithm and equality befo
 Personal Workspace and Competency Trainer do not carry separate local human-authentication keys or
 owner credentials.
 
-The Competency Trainer Agent Access issuing material is parsed with OpenSSL before Compose changes
-the running stack. The issuing certificate must be the first certificate in the two-certificate
-issuing/root chain and must match the issuing private key.
-
-No plaintext PEM files are tracked or deployed by rsync. Multiline application and Agent PKI
+No plaintext PEM files are tracked or deployed by rsync. Multiline application PKI
 values exist in Git only inside SOPS-encrypted documents and are materialized into owner-only
 runtime secret files. On the deployed host, nginx server certificates live in
 `REMOTE_PATH/certificates/` and are exposed to Compose through the release-local
@@ -408,7 +402,6 @@ rotation:
 | Auth API `APP_SECRET_KEY` | Expect existing Auth API sessions or signed values to become invalid. |
 | `DB_PASSWORD` | Change the PostgreSQL role password in the same maintenance operation; changing SOPS alone does not update an initialized database. |
 | Any MinIO access or secret key | Use a dedicated rotation procedure. Ordinary startup rejects changes after the first successful bootstrap by comparing stored fingerprints. Databasus' saved S3 destination must be updated when its identity rotates. |
-| Agent issuing key or certificate | Replace the issuing private key, issuing certificate, and two-certificate issuing/root chain as one validated set. |
 | Auth API `AUTH_PRIVATE_KEY` | Update the matching Auth API public key and account for invalidated tokens. |
 
 ### Instructions for AI agents
@@ -454,7 +447,6 @@ The stack uses one certificate lineage named by `TLS_CERTIFICATE_NAME`, covering
 
 - `alittlemore.dev`
 - `s3.alittlemore.dev`
-- `agent.alittlemore.dev`
 
 For the first deployment, enable the workflow's `issue_certificates` input; it runs issuance from
 the candidate release before `current` exists. After the first successful deployment, issue or
@@ -566,23 +558,10 @@ configurable. MinIO CORS allows the shared application origin. The public S3 end
 Host setup, firewall rules, split DNS, verification, and peer revocation are documented in
 [WireGuard internal access](wireguard-internal-access.md).
 
-Only nginx publishes normal runtime ports. `80` and `443` are public. Ports `18081` through `18083`
+Only nginx publishes normal runtime ports. `80` and `443` are public. Ports `18081` and `18082`
 must bind to `VPN_BIND_ADDRESS`; do not use `0.0.0.0` or a public interface address. PostgreSQL,
 Valkey, MinIO, Databasus, backend, and TaskIQ processes remain on per-application bridge
 networks.
-
-The Agent API on `18083` requires a client certificate chained to the configured Competency Trainer
-Agent CA. nginx forwards only the seven explicit method/path combinations and strips any
-caller-supplied certificate header from the public application listener. Create offline root and
-issuing material outside this repository with:
-
-```bash
-make agent-ca-init OFFLINE_ROOT_DIR=/absolute/offline/path ISSUING_DIR=/absolute/issuing/path
-make agent-client-csr AGENT_ID=agent-name CLIENT_OUTPUT_DIR=/absolute/client/path
-```
-
-The helper resolves symlinks and refuses relative paths, repository-local output, overlapping root
-and issuing trees, and overwriting existing PKI files.
 
 ## Host requirements
 
@@ -676,3 +655,30 @@ browser requests. The development override inherits this routing.
 Local development requires the sibling `i18n` checkout (or explicit `I18N_DIR`)
 and builds `alittlemore-dev/i18n:local`. Local state, cache and secrets use the
 existing isolated development project.
+
+## Personal API token transition
+
+Auth API owns recoverable encrypted PAT credentials and verification v2. The three application APIs
+keep role and object ownership checks in addition to explicit PAT permissions. Browser logout keeps
+PAT valid; password changes and deactivation revoke them. Public combined documentation at
+`/api/docs` publishes protected operations, concrete permissions and external API paths.
+
+Release backend SDK 0.3.0 before updating production service dependency ranges and registry lockfiles.
+Do not deploy the new service sources with the old SDK. Publishing, production deployment and database
+migrations remain separate operator actions. Deploy auth verification v2 first, then SDK consumers,
+then the PAT interface. The historical Agent migration remains; its retirement migration deletes
+only Agent tables and types and does not recover deleted Agent records on downgrade.
+
+`make dev` builds the local SDK wheel from the validated sibling `backend-sdk` checkout (or explicit
+`BACKEND_SDK_DIR`) and overlays that artifact in development backend images. Production images and
+registry dependency locks retain their release boundary. Backend Make checks can use the same built
+wheel via an absolute `LOCAL_BACKEND_SDK_WHEEL` path.
+
+Retired Agent secrets may remain encrypted in the historical SOPS document. The manifest explicitly
+marks those optional names as `retiredSecrets`: they are neither required nor materialized, and do
+not participate in runtime PKI validation. Removing the encrypted historical values through SOPS is
+an independent operator cleanup; the remaining unknown-secret validation stays strict.
+
+Local `make dev` builds images sequentially and gives the Angular build one worker through a
+generated local Dockerfile. This bounds memory use in small Docker Desktop VMs; the production
+frontend Dockerfile is unchanged.

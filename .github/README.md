@@ -20,7 +20,7 @@ entrypoint.
 - Shared MinIO object storage and Databasus backups with scoped identities and buckets.
 - Synchronized blue/green application rollouts with health checks and automatic routing rollback.
 - Service-scoped configuration with native variable names and SOPS/age-encrypted secrets.
-- Public HTTPS APIs with operational tools and the Agent API restricted to the VPN.
+- Public HTTPS APIs with scoped personal access tokens; operational tools remain VPN-only.
 - One shared frontend image serving every non-API route through the nginx edge.
 
 ## Local development

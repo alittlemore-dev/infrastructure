@@ -40,7 +40,6 @@ verify_served_edge_certificates() {
     local -a hostnames=(
         "$APP_DOMAIN"
         "$MINIO_DOMAIN"
-        "agent.${APP_DOMAIN}"
     )
 
     peer_certificate="$(mktemp)"

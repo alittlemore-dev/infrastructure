@@ -20,7 +20,7 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             sandbox = Path(temporary_directory)
             root = sandbox / "repo"
-            document = root / "secrets/competency-trainer/production.sops.yaml"
+            document = root / "secrets/auth-api/production.sops.yaml"
             document.parent.mkdir(parents=True)
             document.write_text("encrypted", encoding="utf-8")
             key_file = sandbox / "age-key.txt"
@@ -38,7 +38,7 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
             fake_sops.write_text(
                 "#!/usr/bin/env python3\n"
                 "import json, os\n"
-                "print(json.dumps({'AGENT_ACCESS_ISSUING_PRIVATE_KEY': os.environ['TEST_ESCAPED_PEM']}))\n",
+                "print(json.dumps({'AUTH_PRIVATE_KEY': os.environ['TEST_ESCAPED_PEM']}))\n",
                 encoding="utf-8",
             )
             fake_sops.chmod(0o755)
@@ -48,13 +48,13 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
                     {
                         "documents": [
                             {
-                                "name": "competency-trainer",
-                                "path": "secrets/competency-trainer/production.sops.yaml",
+                                "name": "auth-api",
+                                "path": "secrets/auth-api/production.sops.yaml",
                                 "secrets": [
                                     {
-                                        "name": "AGENT_ACCESS_ISSUING_PRIVATE_KEY",
-                                        "target": "competency-trainer/agent_issuing_private_key",
-                                        "composeVariable": "COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE",
+                                        "name": "AUTH_PRIVATE_KEY",
+                                        "target": "auth-api/auth_private_key",
+                                        "composeVariable": "COMPOSE_AUTH_API_AUTH_PRIVATE_KEY_FILE",
                                         "allowEmpty": False,
                                         "encoding": "pem",
                                     }
@@ -95,7 +95,7 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
             )
 
             self.assertEqual(0, result.returncode, result.stderr)
-            materialized_key = output_dir / "competency-trainer/agent_issuing_private_key"
+            materialized_key = output_dir / "auth-api/auth_private_key"
             self.assertNotIn("\\n", materialized_key.read_text(encoding="utf-8"))
             validation = subprocess.run(
                 ["openssl", "pkey", "-in", str(materialized_key), "-noout"],
@@ -104,6 +104,63 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
                 timeout=5,
             )
             self.assertEqual(0, validation.returncode, validation.stderr.decode())
+
+    def test_retired_secrets_are_optional_and_never_materialized(self) -> None:
+        for retired_present in (False, True):
+            with self.subTest(retired_present=retired_present), tempfile.TemporaryDirectory() as tmp:
+                sandbox = Path(tmp)
+                root = sandbox / "repo"
+                document = root / "secrets/platform/production.sops.yaml"
+                document.parent.mkdir(parents=True)
+                document.write_text("encrypted", encoding="utf-8")
+                key_file = sandbox / "age-key.txt"
+                key_file.write_text("AGE-SECRET-KEY-test\n", encoding="utf-8")
+                key_file.chmod(0o600)
+                values = {"ACTIVE": "current-value"}
+                if retired_present:
+                    values["RETIRED"] = "old-sensitive-value"
+                fake_sops = root / "fake-sops"
+                fake_sops.write_text(
+                    "#!/usr/bin/env python3\nimport json\n"
+                    + "print(json.dumps(" + repr(values) + "))\n",
+                    encoding="utf-8",
+                )
+                fake_sops.chmod(0o755)
+                manifest = root / "manifest.json"
+                manifest.write_text(json.dumps({"documents": [{
+                    "name": "platform",
+                    "path": "secrets/platform/production.sops.yaml",
+                    "retiredSecrets": ["RETIRED"],
+                    "secrets": [{"name": "ACTIVE", "target": "platform/active",
+                                 "composeVariable": "COMPOSE_ACTIVE_FILE", "allowEmpty": False}],
+                }]}), encoding="utf-8")
+                output_dir = root / "runtime-secrets"
+                compose_env = root / "compose-secrets.env"
+                result = subprocess.run(
+                    ["python3", str(SCRIPT), "--manifest", str(manifest),
+                     "--repo-dir", str(root), "--output-dir", str(output_dir),
+                     "--compose-env-output", str(compose_env),
+                     "--sops-binary", str(fake_sops), "--age-key-file", str(key_file)],
+                    cwd=ROOT, check=False, capture_output=True, text=True, timeout=5,
+                )
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual("current-value", (output_dir / "platform/active").read_text())
+                self.assertEqual(["active"], [item.name for item in (output_dir / "platform").iterdir()])
+                self.assertNotIn("old-sensitive-value", result.stdout + result.stderr + compose_env.read_text())
+                fake_sops.write_text(
+                    "#!/usr/bin/env python3\nimport json\n"
+                    "print(json.dumps({'ACTIVE': 'current-value', 'UNKNOWN': 'unexpected-secret'}))\n",
+                    encoding="utf-8",
+                )
+                rejected = subprocess.run(
+                    ["python3", str(SCRIPT), "--manifest", str(manifest),
+                     "--repo-dir", str(root), "--output-dir", str(output_dir),
+                     "--compose-env-output", str(compose_env),
+                     "--sops-binary", str(fake_sops), "--age-key-file", str(key_file)],
+                    cwd=ROOT, check=False, capture_output=True, text=True, timeout=5,
+                )
+                self.assertNotEqual(0, rejected.returncode)
+                self.assertNotIn("unexpected-secret", rejected.stdout + rejected.stderr)
 
     def test_age_key_must_use_an_absolute_external_path(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -217,11 +274,11 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
             sandbox = Path(temporary_directory)
             root = sandbox / "repo"
             (root / "secrets/personal-workspace").mkdir(parents=True)
-            (root / "secrets/competency-trainer").mkdir(parents=True)
+            (root / "secrets/auth-api").mkdir(parents=True)
             (root / "secrets/personal-workspace/production.sops.yaml").write_text(
                 "encrypted personal", encoding="utf-8"
             )
-            (root / "secrets/competency-trainer/production.sops.yaml").write_text(
+            (root / "secrets/auth-api/production.sops.yaml").write_text(
                 "encrypted competency", encoding="utf-8"
             )
             key_file = sandbox / "age-key.txt"
@@ -235,7 +292,7 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
                 "scope = pathlib.Path(sys.argv[-1]).parent.name\n"
                 "values = {\n"
                 "  'personal-workspace': {'DB_PASSWORD': 'personal-secret'},\n"
-                "  'competency-trainer': {'DB_PASSWORD': 'competency-secret'},\n"
+                "  'auth-api': {'DB_PASSWORD': 'competency-secret'},\n"
                 "}\n"
                 "print(json.dumps(values[scope]))\n",
                 encoding="utf-8",
@@ -259,13 +316,13 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
                                 ],
                             },
                             {
-                                "name": "competency-trainer",
-                                "path": "secrets/competency-trainer/production.sops.yaml",
+                                "name": "auth-api",
+                                "path": "secrets/auth-api/production.sops.yaml",
                                 "secrets": [
                                     {
                                         "name": "DB_PASSWORD",
-                                        "target": "competency-trainer/db_password",
-                                        "composeVariable": "COMPOSE_COMPETENCY_DB_PASSWORD_FILE",
+                                        "target": "auth-api/db_password",
+                                        "composeVariable": "COMPOSE_AUTH_API_DB_PASSWORD_FILE",
                                         "allowEmpty": False,
                                     }
                                 ],
@@ -304,7 +361,7 @@ class MaterializeSopsSecretsTest(unittest.TestCase):
 
             self.assertEqual(0, result.returncode, result.stderr)
             personal = output_dir / "personal-workspace/db_password"
-            competency = output_dir / "competency-trainer/db_password"
+            competency = output_dir / "auth-api/db_password"
             self.assertEqual("personal-secret", personal.read_text(encoding="utf-8"))
             self.assertEqual("competency-secret", competency.read_text(encoding="utf-8"))
             self.assertEqual(0o444, personal.stat().st_mode & 0o777)

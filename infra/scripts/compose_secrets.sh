@@ -43,17 +43,6 @@ fail_invalid_secret() {
     return 1
 }
 
-extract_chain_certificate() {
-    local chain_file="$1"
-    local certificate_number="$2"
-    local output_file="$3"
-
-    awk -v wanted="$certificate_number" '
-        /-----BEGIN CERTIFICATE-----/ { current += 1 }
-        current == wanted { print }
-        current == wanted && /-----END CERTIFICATE-----/ { exit }
-    ' "$chain_file" >"$output_file"
-}
 
 validate_minio_credentials() {
     local root_access_key
@@ -131,58 +120,6 @@ validate_auth_api_pki() {
     fi
 }
 
-validate_competency_pki() {
-    local secrets_dir="$1"
-    local competency_dir="${secrets_dir}/competency-trainer"
-    local issuing_certificate="${competency_dir}/agent_issuing_certificate"
-    local issuing_key="${competency_dir}/agent_issuing_private_key"
-    local chain="${competency_dir}/agent_certificate_chain"
-    local chain_issuing="${secrets_dir}/.agent-chain-issuing.pem"
-    local chain_root="${secrets_dir}/.agent-chain-root.pem"
-    local certificate_public_key="${secrets_dir}/.agent-certificate-public.der"
-    local private_public_key="${secrets_dir}/.agent-private-public.der"
-    local certificate_count
-
-    command -v openssl >/dev/null 2>&1 || {
-        echo "openssl is required to validate deployment PKI material." >&2
-        return 1
-    }
-    openssl x509 -in "$issuing_certificate" -noout >/dev/null 2>&1 \
-        || fail_invalid_secret "AGENT_ACCESS_ISSUING_CERTIFICATE"
-    openssl pkey -in "$issuing_key" -noout >/dev/null 2>&1 \
-        || fail_invalid_secret "AGENT_ACCESS_ISSUING_PRIVATE_KEY"
-
-    certificate_count="$(grep -c '^-----BEGIN CERTIFICATE-----$' "$chain" || true)"
-    if [ "$certificate_count" -ne 2 ]; then
-        fail_invalid_secret "AGENT_ACCESS_CERTIFICATE_CHAIN"
-        return 1
-    fi
-    extract_chain_certificate "$chain" 1 "$chain_issuing"
-    extract_chain_certificate "$chain" 2 "$chain_root"
-    openssl verify -CAfile "$chain_root" "$chain_root" >/dev/null 2>&1 \
-        || fail_invalid_secret "AGENT_ACCESS_CERTIFICATE_CHAIN"
-    openssl verify -CAfile "$chain_root" "$chain_issuing" >/dev/null 2>&1 \
-        || fail_invalid_secret "AGENT_ACCESS_CERTIFICATE_CHAIN"
-    if [ "$(openssl x509 -in "$issuing_certificate" -noout -fingerprint -sha256)" \
-        != "$(openssl x509 -in "$chain_issuing" -noout -fingerprint -sha256)" ]; then
-        fail_invalid_secret "AGENT_ACCESS_CERTIFICATE_CHAIN"
-        return 1
-    fi
-    openssl x509 -in "$issuing_certificate" -pubkey -noout \
-        | openssl pkey -pubin -outform DER >"$certificate_public_key" 2>/dev/null \
-        || fail_invalid_secret "AGENT_ACCESS_ISSUING_CERTIFICATE"
-    openssl pkey -in "$issuing_key" -pubout -outform DER >"$private_public_key" 2>/dev/null \
-        || fail_invalid_secret "AGENT_ACCESS_ISSUING_PRIVATE_KEY"
-    if ! cmp -s "$certificate_public_key" "$private_public_key"; then
-        fail_invalid_secret "AGENT_ACCESS_ISSUING_PRIVATE_KEY"
-        return 1
-    fi
-    rm -f \
-        "$chain_issuing" \
-        "$chain_root" \
-        "$certificate_public_key" \
-        "$private_public_key"
-}
 
 verify_minio_credential_fingerprints() {
     local candidate_fingerprints="$1"
@@ -375,7 +312,6 @@ prepare_compose_secret_files() {
     done
 
     if ! validate_minio_credentials \
-        || ! validate_competency_pki "$candidate_dir" \
         || ! validate_auth_api_pki "$candidate_dir"; then
         exit 1
     fi

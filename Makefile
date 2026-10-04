@@ -23,8 +23,6 @@ help:
 	@printf '%-30s %s\n' '  deploy' 'Run the production-oriented blue/green rollout.'
 	@printf '%-30s %s\n' '  stop' 'Stop the stack without deleting named volumes.'
 	@printf '%-30s %s\n' '  certbot-{issue,renew,sync}' 'Manage the shared TLS certificate.'
-	@printf '%-30s %s\n' '  agent-ca-init' 'Create offline root and issuing Agent CAs.'
-	@printf '%-30s %s\n' '  agent-client-csr' 'Create an Agent client key and CSR.'
 
 .PHONY: deploy run
 deploy:
@@ -49,11 +47,6 @@ certbot-renew:
 certbot-sync:
 	bash infra/scripts/tls.sh sync
 
-.PHONY: agent-ca-init agent-client-csr
-agent-ca-init:
-	bash infra/scripts/agent_ca.sh init "$(OFFLINE_ROOT_DIR)" "$(ISSUING_DIR)"
-agent-client-csr:
-	bash infra/scripts/agent_ca.sh client-csr "$(AGENT_ID)" "$(CLIENT_OUTPUT_DIR)"
 
 .PHONY: tools
 tools:

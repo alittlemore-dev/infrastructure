@@ -27,6 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--auth-api-dir", required=True, type=Path)
     parser.add_argument("--i18n-dir", required=True, type=Path)
     parser.add_argument("--frontend-dir", required=True, type=Path)
+    parser.add_argument("--backend-sdk-dir", type=Path)
     return parser.parse_args()
 
 
@@ -229,108 +230,6 @@ def ensure_auth_key_pair(
     return private_key, public_key
 
 
-def ensure_agent_ca(state_dir: Path, secret_dir: Path) -> None:
-    root_dir = state_dir / "agent-root"
-    ensure_directory(root_dir)
-    root_key = root_dir / "agent-root-ca.key.pem"
-    root_certificate = root_dir / "agent-root-ca.cert.pem"
-    issuing_key = secret_dir / "agent_issuing_private_key"
-    issuing_certificate = secret_dir / "agent_issuing_certificate"
-    chain = secret_dir / "agent_certificate_chain"
-    group = (root_key, root_certificate, issuing_key, issuing_certificate, chain)
-    if require_complete_group(group, "Competency Trainer local agent CA"):
-        run_openssl("verify", "-CAfile", str(root_certificate), str(issuing_certificate))
-        return
-
-    request = root_dir / "agent-issuing-ca.csr.pem"
-    extension = root_dir / "agent-issuing-ca.ext"
-    run_openssl(
-        "genpkey",
-        "-algorithm",
-        "EC",
-        "-pkeyopt",
-        "ec_paramgen_curve:P-256",
-        "-pkeyopt",
-        "ec_param_enc:named_curve",
-        "-out",
-        str(root_key),
-    )
-    run_openssl(
-        "req",
-        "-x509",
-        "-new",
-        "-sha256",
-        "-key",
-        str(root_key),
-        "-days",
-        "3650",
-        "-subj",
-        "/CN=Competency Trainer Local Agent Root CA",
-        "-addext",
-        "basicConstraints=critical,CA:TRUE,pathlen:1",
-        "-addext",
-        "keyUsage=critical,keyCertSign,cRLSign",
-        "-out",
-        str(root_certificate),
-    )
-    run_openssl(
-        "genpkey",
-        "-algorithm",
-        "EC",
-        "-pkeyopt",
-        "ec_paramgen_curve:P-256",
-        "-pkeyopt",
-        "ec_param_enc:named_curve",
-        "-out",
-        str(issuing_key),
-    )
-    run_openssl(
-        "req",
-        "-new",
-        "-sha256",
-        "-key",
-        str(issuing_key),
-        "-subj",
-        "/CN=Competency Trainer Local Agent Issuing CA",
-        "-out",
-        str(request),
-    )
-    atomic_write(
-        extension,
-        "basicConstraints=critical,CA:TRUE,pathlen:0\n"
-        "keyUsage=critical,keyCertSign,cRLSign\n"
-        "subjectKeyIdentifier=hash\n"
-        "authorityKeyIdentifier=keyid,issuer\n",
-    )
-    run_openssl(
-        "x509",
-        "-req",
-        "-sha256",
-        "-in",
-        str(request),
-        "-CA",
-        str(root_certificate),
-        "-CAkey",
-        str(root_key),
-        "-set_serial",
-        "1",
-        "-days",
-        "1825",
-        "-extfile",
-        str(extension),
-        "-out",
-        str(issuing_certificate),
-    )
-    atomic_write(
-        chain,
-        issuing_certificate.read_text(encoding="utf-8")
-        + root_certificate.read_text(encoding="utf-8"),
-    )
-    for path in group:
-        path.chmod(0o600)
-    request.unlink(missing_ok=True)
-    extension.unlink(missing_ok=True)
-    run_openssl("verify", "-CAfile", str(root_certificate), str(issuing_certificate))
 
 
 def ensure_tls(state_dir: Path) -> None:
@@ -346,7 +245,6 @@ def ensure_tls(state_dir: Path) -> None:
         run_openssl("verify", "-CAfile", str(root_certificate), str(fullchain))
         required_hostnames = (
             "alittlemore.localhost",
-            "agent.alittlemore.localhost",
             "s3.localhost",
         )
         certificate_details = subprocess.run(
@@ -420,7 +318,7 @@ def ensure_tls(state_dir: Path) -> None:
         "basicConstraints=critical,CA:FALSE\n"
         "keyUsage=critical,digitalSignature,keyEncipherment\n"
         "extendedKeyUsage=serverAuth\n"
-        "subjectAltName=DNS:alittlemore.localhost,DNS:agent.alittlemore.localhost,"
+        "subjectAltName=DNS:alittlemore.localhost,"
         "DNS:s3.localhost\n",
     )
     run_openssl(
@@ -458,6 +356,32 @@ def ensure_tls(state_dir: Path) -> None:
 
 def dotenv_value(value: str) -> str:
     return json.dumps(value.replace("$", "$$"), ensure_ascii=True)
+
+
+def development_dockerfile(checkout: Path, state_dir: Path) -> Path:
+    source = (checkout / "Dockerfile").read_text(encoding="utf-8")
+    boundary = source.find("\nFROM ", source.find("FROM ") + 1)
+    if boundary < 0 or "AS builder" not in source[:boundary]:
+        raise DevStateError("Backend Dockerfile must expose a builder stage for the local SDK.")
+    overlay = (
+        "\nFROM builder AS sdk-development-builder\n"
+        "COPY --from=backend_sdk /dist /backend-sdk-dist\n"
+        "RUN uv pip install --python /project/.venv/bin/python --no-deps /backend-sdk-dist/*.whl\n"
+    )
+    final_stage = source[boundary:].replace("COPY --from=builder ", "COPY --from=sdk-development-builder ")
+    target = state_dir / "dockerfiles" / f"{checkout.name}.Dockerfile"
+    atomic_write(target, source[:boundary] + overlay + final_stage, 0o600)
+    return target
+
+
+def frontend_development_dockerfile(checkout: Path, state_dir: Path) -> Path:
+    source = (checkout / "Dockerfile").read_text(encoding="utf-8")
+    build_instruction = "RUN npm run build\n"
+    if source.count(build_instruction) != 1:
+        raise DevStateError("Frontend Dockerfile must expose its npm build instruction.")
+    target = state_dir / "dockerfiles" / "frontend.Dockerfile"
+    atomic_write(target, source.replace(build_instruction, "RUN NG_BUILD_MAX_WORKERS=1 npm run build\n"), 0o600)
+    return target
 
 
 def prepare(args: argparse.Namespace) -> None:
@@ -532,7 +456,6 @@ def prepare(args: argparse.Namespace) -> None:
         public_key_name="auth_public_key",
         mode=0o444,
     )
-    ensure_agent_ca(state_dir, competency_secrets)
     ensure_tls(state_dir)
 
     environment = {
@@ -542,6 +465,7 @@ def prepare(args: argparse.Namespace) -> None:
         "I18N_BUILD_CONTEXT": str(i18n),
         "COMPOSE_I18N_SENTRY_DSN_FILE": str(i18n_secrets / "sentry_dsn"),
         "FRONTEND_BUILD_CONTEXT": str(frontend),
+        "FRONTEND_DEV_DOCKERFILE": str(frontend_development_dockerfile(frontend, state_dir)),
         "NGINX_CERTS_DIR": str(state_dir / "tls"),
         "COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE": str(platform_secrets / "minio_root_access_key"),
         "COMPOSE_MINIO_ROOT_SECRET_KEY_FILE": str(platform_secrets / "minio_root_secret_key"),
@@ -561,9 +485,6 @@ def prepare(args: argparse.Namespace) -> None:
         "COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE": str(competency_secrets / "minio_access_key"),
         "COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE": str(competency_secrets / "minio_secret_key"),
         "COMPOSE_COMPETENCY_SENTRY_DSN_FILE": str(competency_secrets / "sentry_dsn"),
-        "COMPOSE_COMPETENCY_AGENT_ISSUING_CERTIFICATE_FILE": str(competency_secrets / "agent_issuing_certificate"),
-        "COMPOSE_COMPETENCY_AGENT_ISSUING_PRIVATE_KEY_FILE": str(competency_secrets / "agent_issuing_private_key"),
-        "COMPOSE_COMPETENCY_AGENT_CERTIFICATE_CHAIN_FILE": str(competency_secrets / "agent_certificate_chain"),
         "COMPOSE_AUTH_API_APP_SECRET_KEY_FILE": str(auth_api_secrets / "app_secret_key"),
         "COMPOSE_AUTH_API_TELEGRAM_SERVICE_SECRET_FILE": str(auth_api_secrets / "telegram_service_secret"),
         "COMPOSE_AUTH_API_AUTH_PRIVATE_KEY_FILE": str(auth_api_private_key),
@@ -573,6 +494,19 @@ def prepare(args: argparse.Namespace) -> None:
         "COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE": str(auth_api_secrets / "minio_secret_key"),
         "COMPOSE_AUTH_API_SENTRY_DSN_FILE": str(auth_api_secrets / "sentry_dsn"),
     }
+    if args.backend_sdk_dir is not None:
+        backend_sdk = validate_checkout(args.backend_sdk_dir, "Backend SDK", ("pyproject.toml",))
+        wheels = list((backend_sdk / "dist").glob("*.whl"))
+        if len(wheels) != 1:
+            raise DevStateError("Build exactly one local backend SDK wheel with make build.")
+        environment["BACKEND_SDK_BUILD_CONTEXT"] = str(backend_sdk)
+        for service, checkout in (
+            ("PERSONAL_WORKSPACE", personal_workspace),
+            ("COMPETENCY_TRAINER", competency_trainer),
+            ("AUTH_API", auth_api),
+        ):
+            environment[f"{service}_DEV_DOCKERFILE"] = str(development_dockerfile(checkout, state_dir))
+
     compose_environment = "".join(
         f"{name}={dotenv_value(value)}\n" for name, value in sorted(environment.items())
     )

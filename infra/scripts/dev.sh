@@ -9,6 +9,7 @@ competency_trainer_dir="${COMPETENCY_TRAINER_DIR:-${repo_dir}/../competency-trai
 auth_api_dir="${AUTH_API_DIR:-${repo_dir}/../auth-api}"
 i18n_dir="${I18N_DIR:-${repo_dir}/../i18n}"
 frontend_dir="${FRONTEND_DIR:-${repo_dir}/../frontend}"
+backend_sdk_dir="${BACKEND_SDK_DIR:-${repo_dir}/../backend-sdk}"
 platform_environment="${repo_dir}/config/platform/development.env"
 state_environment="${state_dir}/compose.env"
 ca_certificate="${state_dir}/tls/local-development-ca.cert.pem"
@@ -175,6 +176,8 @@ if ! docker info >/dev/null 2>&1; then
     exit 1
 fi
 
+make -C "$backend_sdk_dir" build
+
 python3 "${script_dir}/prepare_dev_state.py" \
     --repo-dir "$repo_dir" \
     --state-dir "$state_dir" \
@@ -182,7 +185,8 @@ python3 "${script_dir}/prepare_dev_state.py" \
     --competency-trainer-dir "$competency_trainer_dir" \
     --auth-api-dir "$auth_api_dir" \
     --i18n-dir "$i18n_dir" \
-    --frontend-dir "$frontend_dir"
+    --frontend-dir "$frontend_dir" \
+    --backend-sdk-dir "$backend_sdk_dir"
 bash "${script_dir}/dev_tls.sh" verify
 
 compose config --quiet
@@ -200,7 +204,10 @@ if ! docker image inspect alittlemore-dev/minio:local >/dev/null 2>&1; then
 else
     echo "Reusing local MinIO image: alittlemore-dev/minio:local"
 fi
-compose build "${build_services[@]}"
+# BuildKit otherwise overlaps all images in a small local Docker VM.
+for service in "${build_services[@]}"; do
+    compose build "$service"
+done
 prepare_minio_volume_permissions
 compose_up_wait missing \
     --remove-orphans \

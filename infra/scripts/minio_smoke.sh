@@ -52,9 +52,9 @@ if docker container inspect "$server_name" >/dev/null 2>&1 \
     exit 1
 fi
 images_owned=true
-docker build --pull "${platform_arguments[@]}" --tag "$server_image" \
+docker build --pull ${platform_arguments[@]+"${platform_arguments[@]}"} --tag "$server_image" \
     --file "$repo_dir/infra/minio/Dockerfile" "$repo_dir"
-docker build --pull "${platform_arguments[@]}" --tag "$client_image" \
+docker build --pull ${platform_arguments[@]+"${platform_arguments[@]}"} --tag "$client_image" \
     --file "$repo_dir/infra/minio-mc/Dockerfile" "$repo_dir"
 
 mkdir "$work_dir/secrets"
@@ -68,7 +68,7 @@ chmod 644 "$work_dir/secrets/"*
 network_owned=true
 docker network create --label "alittlemore.minio-smoke=$run_name" "$run_name" >/dev/null
 server_owned=true
-docker run --detach "${platform_arguments[@]}" --name "$server_name" \
+docker run --detach ${platform_arguments[@]+"${platform_arguments[@]}"} --name "$server_name" \
     --label "alittlemore.minio-smoke=$run_name" \
     --network "$run_name" --network-alias minio \
     --read-only --cap-drop ALL --security-opt no-new-privileges:true \
@@ -95,7 +95,7 @@ docker exec "$server_name" curl --fail --silent --output /dev/null http://localh
 
 run_client_script() {
     client_owned=true
-    docker run --rm "${platform_arguments[@]}" --name "$client_name" --network "$run_name" \
+    docker run --rm ${platform_arguments[@]+"${platform_arguments[@]}"} --name "$client_name" --network "$run_name" \
         --read-only --cap-drop ALL --security-opt no-new-privileges:true \
         --tmpfs /tmp:mode=1777,uid=10003,gid=10003 \
         --mount "type=bind,source=$work_dir/secrets,target=/run/secrets,readonly" \

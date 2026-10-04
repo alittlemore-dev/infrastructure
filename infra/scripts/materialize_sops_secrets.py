@@ -162,12 +162,21 @@ def materialize(args: argparse.Namespace) -> None:
         seen_document_names: set[str] = set()
         seen_targets: set[str] = set()
         for raw_document in documents:
-            if not isinstance(raw_document, dict) or set(raw_document) != {
-                "name",
-                "path",
-                "secrets",
-            }:
-                raise ValueError("Each document must contain exactly name, path, and secrets.")
+            required_document_fields = {"name", "path", "secrets"}
+            if (
+                not isinstance(raw_document, dict)
+                or not required_document_fields <= set(raw_document)
+                or set(raw_document) - required_document_fields - {"retiredSecrets"}
+            ):
+                raise ValueError("Each document requires name, path, secrets, and optional retiredSecrets.")
+            retired_names = raw_document.get("retiredSecrets", [])
+            if (
+                not isinstance(retired_names, list)
+                or any(not isinstance(name, str) or VARIABLE_NAME_PATTERN.fullmatch(name) is None
+                       for name in retired_names)
+                or len(set(retired_names)) != len(retired_names)
+            ):
+                raise ValueError("retiredSecrets must contain unique valid secret names.")
             document_name = require_string(raw_document["name"], "Document name")
             if document_name in seen_document_names:
                 raise ValueError(f"Duplicate secret document: {document_name}")
@@ -236,7 +245,9 @@ def materialize(args: argparse.Namespace) -> None:
                 write_secret_file(staging_dir / target, value)
                 compose_paths[compose_variable] = str(args.output_dir / target)
 
-            unexpected_names = sorted(set(values) - expected_names)
+            if expected_names.intersection(retired_names):
+                raise ValueError("Active and retired secret names must not overlap.")
+            unexpected_names = sorted(set(values) - expected_names - set(retired_names))
             if unexpected_names:
                 raise ValueError(
                     f"{document_name} has unexpected secrets: {', '.join(unexpected_names)}"

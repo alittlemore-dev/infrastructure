@@ -54,8 +54,7 @@ issue_certificates() {
         --expand \
         --cert-name "$TLS_CERTIFICATE_NAME" \
         -d "$APP_DOMAIN" \
-        -d "$MINIO_DOMAIN" \
-        -d "agent.${APP_DOMAIN}"
+        -d "$MINIO_DOMAIN"
     sync_certificates
     reload_nginx_if_running
 }

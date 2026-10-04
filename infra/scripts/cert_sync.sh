@@ -34,8 +34,7 @@ openssl x509 -in "${staging_directory}/fullchain.pem" -noout -checkend 0 >/dev/n
 openssl pkey -in "${staging_directory}/privkey.pem" -noout >/dev/null
 for hostname in \
     "$app_domain" \
-    "$minio_domain" \
-    "agent.${app_domain}"; do
+    "$minio_domain"; do
     openssl x509 -in "${staging_directory}/fullchain.pem" -noout -checkhost "$hostname" >/dev/null
 done
 certificate_public_key="$({

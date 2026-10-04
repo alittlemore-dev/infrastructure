@@ -34,7 +34,9 @@ services:
     <<: *personal-workspace-dev-image
     build:
       context: ${PERSONAL_WORKSPACE_BUILD_CONTEXT:?Personal Workspace backend checkout is required}
-      dockerfile: Dockerfile
+      dockerfile: ${PERSONAL_WORKSPACE_DEV_DOCKERFILE:-Dockerfile}
+      additional_contexts:
+        backend_sdk: ${BACKEND_SDK_BUILD_CONTEXT:-.}
     container_name: alittlemore_dev_personal_workspace_backend_blue
 
   personal-workspace-backend-green:
@@ -67,7 +69,9 @@ services:
     <<: *competency-dev-image
     build:
       context: ${COMPETENCY_BUILD_CONTEXT:?Competency Trainer backend checkout is required}
-      dockerfile: Dockerfile
+      dockerfile: ${COMPETENCY_TRAINER_DEV_DOCKERFILE:-Dockerfile}
+      additional_contexts:
+        backend_sdk: ${BACKEND_SDK_BUILD_CONTEXT:-.}
     container_name: alittlemore_dev_competency_backend_blue
 
   competency-backend-green:
@@ -100,7 +104,9 @@ services:
     <<: *auth-api-dev-image
     build:
       context: ${AUTH_API_BUILD_CONTEXT:?Auth API checkout is required}
-      dockerfile: Dockerfile
+      dockerfile: ${AUTH_API_DEV_DOCKERFILE:-Dockerfile}
+      additional_contexts:
+        backend_sdk: ${BACKEND_SDK_BUILD_CONTEXT:-.}
     container_name: alittlemore_dev_auth_api_backend_blue
 
   auth-api-backend-green:
@@ -134,7 +140,7 @@ services:
     pull_policy: never
     build:
       context: ${FRONTEND_BUILD_CONTEXT:?Frontend checkout is required}
-      dockerfile: Dockerfile
+      dockerfile: ${FRONTEND_DEV_DOCKERFILE:-Dockerfile}
     container_name: alittlemore_dev_frontend_blue
 
   frontend-green:

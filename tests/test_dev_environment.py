@@ -18,22 +18,28 @@ SCRIPTS = ROOT / "infra/scripts"
 def create_checkout(root: Path, name: str) -> Path:
     checkout = root / name
     checkout.mkdir(parents=True)
-    (checkout / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (checkout / "Dockerfile").write_text("FROM scratch AS builder\n\nFROM scratch\nCOPY --from=builder /project /project\n", encoding="utf-8")
     return checkout
 
 
 def create_frontend_checkout(root: Path) -> Path:
     checkout = root / "frontend"
     checkout.mkdir()
-    (checkout / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (checkout / "Dockerfile").write_text("FROM scratch AS builder\nRUN npm run build\n\nFROM scratch\nCOPY --from=builder /project /project\n", encoding="utf-8")
     return checkout
 
 
 def create_auth_api_checkout(root: Path) -> Path:
     create_checkout(root, "i18n")
+    sdk = root / "backend-sdk"
+    sdk.mkdir()
+    (sdk / "pyproject.toml").write_text('[project]\nname = "test-backend-sdk"\nversion = "0.3.0"\n')
+    (sdk / "Makefile").write_text("build:\n\t@true\n")
+    (sdk / "dist").mkdir()
+    (sdk / "dist/test_backend_sdk-0.3.0-py3-none-any.whl").write_bytes(b"test artifact")
     checkout = root / "auth-api"
     checkout.mkdir()
-    (checkout / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (checkout / "Dockerfile").write_text("FROM scratch AS builder\n\nFROM scratch\nCOPY --from=builder /project /project\n", encoding="utf-8")
     return checkout
 
 
@@ -106,7 +112,6 @@ class DevStateTest(unittest.TestCase):
 
             private_stable_files = (
                 state_dir / "secrets/platform/minio_root_secret_key",
-                state_dir / "secrets/competency-trainer/agent_issuing_private_key",
                 state_dir / "tls/local-development-ca.key.pem",
             )
             auth_api_compose_files = (
@@ -153,7 +158,6 @@ class DevStateTest(unittest.TestCase):
 
             for certificate in (
                 state_dir / "tls/fullchain.pem",
-                state_dir / "secrets/competency-trainer/agent_issuing_certificate",
             ):
                 verified = subprocess.run(
                     ["openssl", "x509", "-in", str(certificate), "-noout"],
@@ -179,7 +183,6 @@ class DevStateTest(unittest.TestCase):
             self.assertEqual(0, certificate_details.returncode, certificate_details.stderr)
             for hostname in (
                 "alittlemore.localhost",
-                "agent.alittlemore.localhost",
                 "s3.localhost",
             ):
                 self.assertIn(f"DNS:{hostname}", certificate_details.stdout)
@@ -532,6 +535,7 @@ class DevOrchestrationTest(unittest.TestCase):
                     "COMPETENCY_TRAINER_DIR": str(competency_trainer),
                     "I18N_DIR": str(auth_api.parent / "i18n"),
                     "AUTH_API_DIR": str(auth_api),
+                    "BACKEND_SDK_DIR": str(auth_api.parent / "backend-sdk"),
                     "FRONTEND_DIR": str(frontend),
                     "FAKE_SECURITY_LOG": str(security_log),
                     "FAKE_TRUST_MARKER": str(trust_marker),
@@ -613,6 +617,7 @@ class DevOrchestrationTest(unittest.TestCase):
                     "COMPETENCY_TRAINER_DIR": str(competency_trainer),
                     "I18N_DIR": str(auth_api.parent / "i18n"),
                     "AUTH_API_DIR": str(auth_api),
+                    "BACKEND_SDK_DIR": str(auth_api.parent / "backend-sdk"),
                     "FRONTEND_DIR": str(frontend),
                     "FAKE_DOCKER_LOG": str(docker_log),
                     "FAKE_CURL_LOG": str(curl_log),
