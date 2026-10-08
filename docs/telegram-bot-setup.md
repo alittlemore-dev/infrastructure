@@ -26,6 +26,11 @@ The internal settings endpoint is blocked at the public edge and authenticates e
 with the service secret. Rotating the bot token or webhook secret affects only
 `personal-workspace`. Rotate the shared service secret in both encrypted documents together.
 
+Both Personal Workspace API and TaskIQ worker slots join `personal-auth-verification-network`
+to read account settings from Auth API. Notification workers need this internal connection
+for the account timezone and bot preferences. Without it, date reminders cannot be planned
+and finance deliveries exhaust their retries even while the bot and queue are healthy.
+
 Auth API checks the active bot backend before writing changed Telegram preferences, including
 removals. Compose supplies the required `TELEGRAM_PERSONAL_WORKSPACE_STATUS_URL` from
 `PERSONAL_WORKSPACE_ACTIVE_BACKEND`, targeting `/api/internal/telegram/status` directly on

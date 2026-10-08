@@ -268,6 +268,9 @@ services:
     <<: *personal-workspace-backend
     container_name: personal_workspace_taskiq_worker_blue
     command: bash start_application.sh taskiq-worker
+    networks:
+      - personal-workspace-network
+      - personal-auth-verification-network
     depends_on:
       personal-workspace-postgres:
         condition: service_healthy
@@ -279,6 +282,9 @@ services:
     <<: *personal-workspace-backend
     container_name: personal_workspace_taskiq_worker_green
     command: bash start_application.sh taskiq-worker
+    networks:
+      - personal-workspace-network
+      - personal-auth-verification-network
     depends_on:
       personal-workspace-postgres:
         condition: service_healthy

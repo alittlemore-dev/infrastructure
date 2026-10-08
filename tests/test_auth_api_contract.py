@@ -7,11 +7,41 @@ import tempfile
 import unittest
 import shutil
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
 class AuthApiContractTest(unittest.TestCase):
+    def test_notification_workers_can_reach_account_settings_in_either_slot(self) -> None:
+        manifest = json.loads((ROOT / "infra/deploy/runtime-secrets.manifest.json").read_text())
+        for auth_slot in ("blue", "green"):
+            environment = dict(
+                os.environ,
+                AUTH_API_ACTIVE_BACKEND=f"auth-api-backend-{auth_slot}",
+                PERSONAL_WORKSPACE_ACTIVE_BACKEND="personal-workspace-backend-blue",
+            )
+            for document in manifest["documents"]:
+                for secret in document["secrets"]:
+                    environment[secret["composeVariable"]] = "/dev/null"
+            result = subprocess.run(
+                ["docker", "compose", "--env-file", "config/platform/development.env",
+                 "-f", "docker-compose.yml", "config", "--format", "json"],
+                cwd=ROOT, env=environment, capture_output=True, text=True, check=True,
+                timeout=15,
+            )
+            compose = json.loads(result.stdout)
+            services = compose["services"]
+            for worker_slot in ("blue", "green"):
+                with self.subTest(auth=auth_slot, worker=worker_slot):
+                    worker = services[f"personal-workspace-taskiq-worker-{worker_slot}"]
+                    target = urlsplit(worker["environment"]["AUTH_ACCOUNT_SETTINGS_URL"])
+                    self.assertEqual(f"auth-api-backend-{auth_slot}", target.hostname)
+                    auth = services[target.hostname]
+                    shared = set(worker["networks"]) & set(auth["networks"])
+                    self.assertTrue(shared, "Notification workers must reach account settings")
+                    self.assertTrue(all(compose["networks"][name]["internal"] for name in shared))
+
     def test_maintenance_and_scan_render_without_starting_auth(self) -> None:
         docker = shutil.which("docker")
         self.assertIsNotNone(docker)
