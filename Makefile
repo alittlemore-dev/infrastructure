@@ -18,6 +18,7 @@ help:
 	@printf '%-30s %s\n' '  status' 'Show the active deployment and project containers.'
 	@printf '%-30s %s\n' '  dependencies-status' 'Check manually pinned dependencies for upstream updates.'
 	@printf '%-30s %s\n' '  dev' 'Build and start applications from local sibling checkouts.'
+	@printf '%-30s %s\n' '  dev-seed-analytics' 'Seed local demo matrix and traffic analytics for 120 days.'
 	@printf '%-30s %s\n' '  dev-trust' 'Trust the generated local HTTPS certificate authority.'
 	@printf '%-30s %s\n' '  secrets-verify' 'Verify every tracked SOPS document without plaintext output.'
 	@printf '%-30s %s\n' '  deploy' 'Run the production-oriented blue/green rollout.'
@@ -104,3 +105,7 @@ secrets-verify:
 
 .PHONY: quality
 quality: tests validate lint security-config minio-smoke
+
+.PHONY: dev-seed-analytics
+dev-seed-analytics:
+	bash infra/scripts/seed_dev_analytics.sh
