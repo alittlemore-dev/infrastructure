@@ -59,7 +59,7 @@ docker build --pull ${platform_arguments[@]+"${platform_arguments[@]}"} --tag "$
 
 mkdir "$work_dir/secrets"
 chmod 755 "$work_dir/secrets"
-for identity in minio_root personal_workspace_minio competency_minio databasus_minio auth_api_minio; do
+for identity in minio_root personal_workspace_minio competency_minio backup_minio auth_api_minio; do
     printf '%s-smoke-access\n' "$identity" >"$work_dir/secrets/${identity}_access_key"
     printf '%s-smoke-secret\n' "$identity" >"$work_dir/secrets/${identity}_secret_key"
 done
@@ -68,7 +68,8 @@ chmod 644 "$work_dir/secrets/"*
 network_owned=true
 docker network create --label "alittlemore.minio-smoke=$run_name" "$run_name" >/dev/null
 server_owned=true
-docker run --detach ${platform_arguments[@]+"${platform_arguments[@]}"} --name "$server_name" \
+docker run --detach --cpus 1 --memory 512m ${platform_arguments[@]+"${platform_arguments[@]}"} --name "$server_name" \
+    --env GOMAXPROCS=1 --env GOMEMLIMIT=256MiB \
     --label "alittlemore.minio-smoke=$run_name" \
     --network "$run_name" --network-alias minio \
     --read-only --cap-drop ALL --security-opt no-new-privileges:true \
@@ -94,17 +95,21 @@ fi
 docker exec "$server_name" curl --fail --silent --output /dev/null http://localhost:9001/
 
 run_client_script() {
+    local client_script="$1"
+    shift
     client_owned=true
-    docker run --rm ${platform_arguments[@]+"${platform_arguments[@]}"} --name "$client_name" --network "$run_name" \
+    docker run --rm --cpus 1 --memory 256m ${platform_arguments[@]+"${platform_arguments[@]}"} --name "$client_name" --network "$run_name" \
+        --env GOMAXPROCS=1 --env GOMEMLIMIT=128MiB \
         --read-only --cap-drop ALL --security-opt no-new-privileges:true \
         --tmpfs /tmp:mode=1777,uid=10003,gid=10003 \
         --mount "type=bind,source=$work_dir/secrets,target=/run/secrets,readonly" \
         --mount "type=bind,source=$repo_dir/infra/minio/policies,target=/policies,readonly" \
-        --mount "type=bind,source=$1,target=/smoke.sh,readonly" \
-        --entrypoint /bin/sh "$client_image" /smoke.sh
+        --mount "type=bind,source=$client_script,target=/smoke.sh,readonly" \
+        --entrypoint /bin/sh "$client_image" /smoke.sh "$@"
     client_owned=false
 }
 run_client_script "$script_dir/minio_bootstrap.sh"
+run_client_script "$script_dir/minio_smoke_client.sh" attach-extra-policy
 run_client_script "$script_dir/minio_bootstrap.sh"
 run_client_script "$script_dir/minio_smoke_client.sh"
 echo "MinIO build, health, repeated bootstrap and isolated S3 policies passed."

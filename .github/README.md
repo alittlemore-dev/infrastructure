@@ -17,7 +17,7 @@ entrypoint.
 - Namespaced API routing: `/api/personal-workspace/*` and `/api/competency/*` are translated to
   each backend's existing `/api/*` contract; Auth API uses `/api/auth/*` directly.
 - Separate PostgreSQL, Valkey, credentials, volumes, and private networks for each application.
-- Shared MinIO object storage and Databasus backups with scoped identities and buckets.
+- Automatic PostgreSQL, Valkey and file backups with three recovery checkpoints.
 - Synchronized blue/green application rollouts with health checks and automatic routing rollback.
 - Service-scoped configuration with native variable names and SOPS/age-encrypted secrets.
 - Public HTTPS APIs with scoped personal access tokens; operational tools remain VPN-only.

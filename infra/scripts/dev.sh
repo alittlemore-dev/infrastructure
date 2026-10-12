@@ -198,6 +198,8 @@ build_services=(
     frontend-blue
     nginx
     minio-bootstrap
+    backup
+    backup-status
 )
 if ! docker image inspect alittlemore-dev/minio:local >/dev/null 2>&1; then
     build_services+=(minio)
@@ -218,8 +220,7 @@ compose_up_wait missing \
     auth-api-postgres \
     auth-api-valkey \
     i18n-valkey \
-    minio \
-    databasus
+    minio
 run_initializers
 compose_up_wait never \
     --no-deps \
@@ -237,6 +238,9 @@ compose_up_wait never \
     frontend-blue \
     nginx
 smoke_local_edge
+
+python3 "$script_dir/backup_deployment_metadata.py" --output-dir "${state_dir}/backup/metadata" --project alittlemore-dev
+compose_up_wait never --no-deps backup backup-status
 
 printf '\nLocal integration stack is ready:\n'
 printf '  Application edge: https://alittlemore.localhost\n'

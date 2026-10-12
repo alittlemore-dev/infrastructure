@@ -37,7 +37,13 @@ elif arguments[:3] == ["admin", "policy", "create"]:
 elif arguments[:3] == ["admin", "user", "add"]:
     state["users"][arguments[4]] = arguments[5]
 elif arguments[:3] == ["admin", "policy", "attach"]:
-    state["attachments"][arguments[6]] = arguments[4]
+    assignments = state["attachments"].setdefault(arguments[6], [])
+    if arguments[4] not in assignments:
+        assignments.append(arguments[4])
+elif arguments[:3] == ["admin", "policy", "detach"]:
+    state["attachments"][arguments[6]].remove(arguments[4])
+elif arguments[:4] == ["--json", "admin", "user", "info"]:
+    print(json.dumps({"status": "success", "policyName": ",".join(state["attachments"].get(arguments[5], []))}))
 else:
     print(f"unexpected mc invocation: {arguments}", file=sys.stderr)
     raise SystemExit(2)
@@ -66,6 +72,8 @@ class MinioBootstrapTest(unittest.TestCase):
             secrets_dir = temporary_path / "secrets"
             binary_dir = temporary_path / "bin"
             state_file = temporary_path / "state.json"
+            state_file.write_text(json.dumps({"buckets": [], "policies": {}, "users": {},
+                "attachments": {"backup": ["extra-policy"], "personal-workspace": ["operator-policy"]}}))
             secrets_dir.mkdir()
             binary_dir.mkdir()
 
@@ -76,14 +84,17 @@ class MinioBootstrapTest(unittest.TestCase):
                 "personal_workspace_minio_secret_key": "personal-secret",
                 "competency_minio_access_key": "competency-trainer",
                 "competency_minio_secret_key": "competency-secret",
-                "databasus_minio_access_key": "databasus",
-                "databasus_minio_secret_key": "databasus-secret",
+                "backup_minio_access_key": "backup",
+                "backup_minio_secret_key": "backup-secret",
                 "auth_api_minio_access_key": "auth-api",
                 "auth_api_minio_secret_key": "auth-api-secret",
             }
             for name, value in secret_values.items():
                 (secrets_dir / name).write_text(value, encoding="utf-8")
 
+            fake_jq = binary_dir / "jq"
+            fake_jq.write_text('#!/usr/bin/env python3\nimport json, sys\nvalue = json.load(open(sys.argv[-1]))\nif sys.argv[1] == "-r":\n for policy in value["policyName"].split(","):\n  if policy and policy != "backup": print(policy)\n')
+            fake_jq.chmod(0o700)
             fake_mc = binary_dir / "mc"
             fake_mc.write_text(textwrap.dedent(FAKE_MC), encoding="utf-8")
             fake_mc.chmod(0o700)
@@ -123,7 +134,7 @@ class MinioBootstrapTest(unittest.TestCase):
                 {
                     "personal-workspace": "/policies/personal-workspace.json",
                     "competency-trainer": "/policies/competency-trainer.json",
-                    "databasus": "/policies/databasus.json",
+                    "backup": "/policies/backup.json",
                     "auth-api": "/policies/auth-api.json",
                 },
                 state["policies"],
@@ -132,17 +143,17 @@ class MinioBootstrapTest(unittest.TestCase):
                 {
                     "personal-workspace": "personal-secret",
                     "competency-trainer": "competency-secret",
-                    "databasus": "databasus-secret",
+                    "backup": "backup-secret",
                     "auth-api": "auth-api-secret",
                 },
                 state["users"],
             )
             self.assertEqual(
                 {
-                    "personal-workspace": "personal-workspace",
-                    "competency-trainer": "competency-trainer",
-                    "databasus": "databasus",
-                    "auth-api": "auth-api",
+                    "personal-workspace": ["operator-policy", "personal-workspace"],
+                    "competency-trainer": ["competency-trainer"],
+                    "backup": ["backup"],
+                    "auth-api": ["auth-api"],
                 },
                 state["attachments"],
             )

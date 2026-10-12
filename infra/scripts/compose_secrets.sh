@@ -51,8 +51,8 @@ validate_minio_credentials() {
     local personal_secret_key
     local competency_access_key
     local competency_secret_key
-    local databasus_access_key
-    local databasus_secret_key
+    local backup_access_key
+    local backup_secret_key
     local auth_api_access_key
     local auth_api_secret_key
     local secret_key
@@ -63,8 +63,8 @@ validate_minio_credentials() {
     personal_secret_key="$(cat "$COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE")"
     competency_access_key="$(cat "$COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE")"
     competency_secret_key="$(cat "$COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE")"
-    databasus_access_key="$(cat "$COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE")"
-    databasus_secret_key="$(cat "$COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE")"
+    backup_access_key="$(cat "$COMPOSE_BACKUP_MINIO_ACCESS_KEY_FILE")"
+    backup_secret_key="$(cat "$COMPOSE_BACKUP_MINIO_SECRET_KEY_FILE")"
     auth_api_access_key="$(cat "$COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE")"
     auth_api_secret_key="$(cat "$COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE")"
 
@@ -73,13 +73,13 @@ validate_minio_credentials() {
         "$root_access_key" \
         "$personal_access_key" \
         "$competency_access_key" \
-        "$databasus_access_key" \
+        "$backup_access_key" \
         "$auth_api_access_key"
     for secret_key in \
         "$root_secret_key" \
         "$personal_secret_key" \
         "$competency_secret_key" \
-        "$databasus_secret_key" \
+        "$backup_secret_key" \
         "$auth_api_secret_key"; do
         if [ "${#secret_key}" -lt 8 ]; then
             echo "Every MinIO secret key must contain at least eight characters." >&2
@@ -91,7 +91,7 @@ validate_minio_credentials() {
         "$root_secret_key" \
         "$personal_secret_key" \
         "$competency_secret_key" \
-        "$databasus_secret_key" \
+        "$backup_secret_key" \
         "$auth_api_secret_key"
 }
 
@@ -123,10 +123,8 @@ validate_auth_api_pki() {
 
 verify_minio_credential_fingerprints() {
     local candidate_fingerprints="$1"
-    local legacy_candidate_fingerprints="$2"
-    local fingerprint_marker="$3"
-    local active_slot_marker="$4"
-    local legacy_format
+    local fingerprint_marker="$2"
+    local active_slot_marker="$3"
 
     if ! python3 "${repo_dir}/infra/scripts/minio_credential_fingerprints.py" \
         >"$candidate_fingerprints"; then
@@ -149,19 +147,11 @@ verify_minio_credential_fingerprints() {
         echo "MinIO credential fingerprint marker must be owner-only and owned by the current user." >&2
         return 1
     fi
-    if cmp -s "$candidate_fingerprints" "$fingerprint_marker"; then
+    if python3 "${repo_dir}/infra/scripts/minio_credential_fingerprints.py" \
+        --compare "$candidate_fingerprints" "$fingerprint_marker"; then
         printf '%s\n' current
         return
     fi
-    for legacy_format in --legacy-without-auth-api --legacy-secret-keys-only; do
-        if python3 "${repo_dir}/infra/scripts/minio_credential_fingerprints.py" \
-            "$legacy_format" >"$legacy_candidate_fingerprints" \
-            && chmod 600 "$legacy_candidate_fingerprints" \
-            && cmp -s "$legacy_candidate_fingerprints" "$fingerprint_marker"; then
-            printf '%s\n' legacy
-            return
-        fi
-    done
     echo "MinIO credential rotation is not supported during make run." >&2
     echo "Keep the existing MinIO access and secret keys or perform a coordinated maintenance rotation." >&2
     return 1
@@ -244,10 +234,8 @@ prepare_compose_secret_files() {
     local candidate_dir
     local candidate_environment_file
     local candidate_fingerprints
-    local legacy_candidate_fingerprints
     local fingerprint_marker
     local active_slot_marker
-    local fingerprint_mode
     local candidate_path
     local variable_name
     local cleanup_status
@@ -281,12 +269,10 @@ prepare_compose_secret_files() {
     temporary_pointer="${default_state_directory}/.compose-secrets-${slot_name}.$$"
     candidate_environment_file="$(mktemp "${default_state_directory}/.compose-secrets.env.XXXXXX")"
     candidate_fingerprints="$(mktemp "${default_state_directory}/.minio-fingerprints.XXXXXX")"
-    legacy_candidate_fingerprints="$(mktemp "${default_state_directory}/.minio-legacy-fingerprints.XXXXXX")"
 
     trap 'cleanup_status=$?; trap - EXIT HUP INT TERM; cleanup_compose_secret_transaction \
         "$candidate_dir" "$slot_pointer" "$temporary_pointer" "$expected_pointer_target" \
-        "$candidate_environment_file" "$candidate_fingerprints" \
-        "$legacy_candidate_fingerprints"; exit "$cleanup_status"' EXIT
+        "$candidate_environment_file" "$candidate_fingerprints"; exit "$cleanup_status"' EXIT
     trap 'exit 130' HUP INT TERM
 
     if ! python3 "${repo_dir}/infra/scripts/materialize_sops_secrets.py" \
@@ -315,11 +301,8 @@ prepare_compose_secret_files() {
         || ! validate_auth_api_pki "$candidate_dir"; then
         exit 1
     fi
-    if ! fingerprint_mode="$(verify_minio_credential_fingerprints \
-        "$candidate_fingerprints" \
-        "$legacy_candidate_fingerprints" \
-        "$fingerprint_marker" \
-        "$active_slot_marker")"; then
+    if ! verify_minio_credential_fingerprints \
+        "$candidate_fingerprints" "$fingerprint_marker" "$active_slot_marker" >/dev/null; then
         exit 1
     fi
     if ! switch_compose_secret_slot \
@@ -341,20 +324,12 @@ prepare_compose_secret_files() {
             "${slot_pointer}/${candidate_path#"${candidate_dir}/"}"
     done
 
-    if [ "$fingerprint_mode" = legacy ]; then
-        if ! mv -f "$candidate_fingerprints" "$fingerprint_marker"; then
-            echo "Could not upgrade the legacy MinIO credential fingerprint marker." >&2
-            exit 1
-        fi
-    fi
-
     if [ -n "$PREVIOUS_COMPOSE_SECRET_GENERATION" ] \
         && [ "$PREVIOUS_COMPOSE_SECRET_GENERATION" != "$candidate_dir" ]; then
         rm -rf -- "$PREVIOUS_COMPOSE_SECRET_GENERATION"
     fi
     cleanup_compose_secret_transaction \
         "$candidate_dir" "$slot_pointer" "$temporary_pointer" "$expected_pointer_target" \
-        "$candidate_environment_file" "$candidate_fingerprints" \
-        "$legacy_candidate_fingerprints"
+        "$candidate_environment_file" "$candidate_fingerprints"
     trap - EXIT HUP INT TERM
 }

@@ -4,61 +4,49 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
+from pathlib import Path
 import sys
 
 
-PRE_AUTH_API_SECRET_FILES = (
+SECRET_FILES = (
     ("MINIO_ROOT_ACCESS_KEY", "COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE"),
     ("MINIO_ROOT_SECRET_KEY", "COMPOSE_MINIO_ROOT_SECRET_KEY_FILE"),
     ("PERSONAL_WORKSPACE_MINIO_ACCESS_KEY", "COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE"),
     ("PERSONAL_WORKSPACE_MINIO_SECRET_KEY", "COMPOSE_PERSONAL_WORKSPACE_MINIO_SECRET_KEY_FILE"),
     ("COMPETENCY_MINIO_ACCESS_KEY", "COMPOSE_COMPETENCY_MINIO_ACCESS_KEY_FILE"),
     ("COMPETENCY_MINIO_SECRET_KEY", "COMPOSE_COMPETENCY_MINIO_SECRET_KEY_FILE"),
-    ("DATABASUS_MINIO_ACCESS_KEY", "COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE"),
-    ("DATABASUS_MINIO_SECRET_KEY", "COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE"),
-)
-
-SECRET_FILES = PRE_AUTH_API_SECRET_FILES + (
+    ("BACKUP_MINIO_ACCESS_KEY", "COMPOSE_BACKUP_MINIO_ACCESS_KEY_FILE"),
+    ("BACKUP_MINIO_SECRET_KEY", "COMPOSE_BACKUP_MINIO_SECRET_KEY_FILE"),
     ("AUTH_API_MINIO_ACCESS_KEY", "COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE"),
     ("AUTH_API_MINIO_SECRET_KEY", "COMPOSE_AUTH_API_MINIO_SECRET_KEY_FILE"),
 )
 
-LEGACY_SECRET_NAMES = {
-    "MINIO_ROOT_SECRET_KEY",
-    "PERSONAL_WORKSPACE_MINIO_SECRET_KEY",
-    "COMPETENCY_MINIO_SECRET_KEY",
-    "DATABASUS_MINIO_SECRET_KEY",
-}
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Hash MinIO identities without exposing their values."
-    )
-    legacy_format = parser.add_mutually_exclusive_group()
-    legacy_format.add_argument(
-        "--legacy-secret-keys-only",
-        action="store_true",
-        help="render the four-line marker written before access keys were pinned",
-    )
-    legacy_format.add_argument(
-        "--legacy-without-auth-api",
-        action="store_true",
-        help="render the eight-line marker written before auth-api credentials were tracked",
-    )
-    return parser.parse_args()
+def document_values(path: Path) -> tuple[str, ...]:
+    lines = path.read_text().splitlines()
+    if len(lines) != len(SECRET_FILES):
+        raise ValueError("Incomplete credential fingerprints.")
+    values: list[str] = []
+    labels: set[str] = set()
+    for line in lines:
+        match = re.fullmatch(r"([A-Z][A-Z0-9_]{0,127}) ([0-9a-f]{64})", line)
+        if match is None or match[1] in labels:
+            raise ValueError("Invalid credential fingerprints.")
+        labels.add(match[1])
+        values.append(match[2])
+    return tuple(values)
 
 
 def main() -> int:
-    args = parse_args()
-    selected_files = SECRET_FILES
-    if args.legacy_secret_keys_only:
-        selected_files = tuple(
-            item for item in SECRET_FILES if item[0] in LEGACY_SECRET_NAMES
-        )
-    elif args.legacy_without_auth_api:
-        selected_files = PRE_AUTH_API_SECRET_FILES
-    for name, file_variable in selected_files:
+    parser = argparse.ArgumentParser(description="Hash and compare ordered MinIO credentials.")
+    parser.add_argument("--compare", nargs=2, type=Path)
+    args = parser.parse_args()
+    if args.compare:
+        try:
+            return 0 if document_values(args.compare[0]) == document_values(args.compare[1]) else 1
+        except (OSError, ValueError):
+            return 1
+    for name, file_variable in SECRET_FILES:
         secret_path = os.environ.get(file_variable)
         if secret_path is None:
             print(f"{file_variable} must point to a MinIO secret file.", file=sys.stderr)

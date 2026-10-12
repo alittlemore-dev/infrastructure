@@ -69,7 +69,9 @@ services:
     image: scratch
   competency-valkey:
     image: scratch
-  databasus:
+  backup:
+    image: scratch
+  backup-status:
     image: scratch
   nginx:
     image: scratch

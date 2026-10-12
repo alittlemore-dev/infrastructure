@@ -1,0 +1,15 @@
+{
+  "destinations": [
+    {
+      "id": "internal",
+      "endpoint": "http://minio:9000",
+      "internal": true,
+      "region_env": "MINIO_REGION",
+      "bucket": "database-backups",
+      "prefix": "system/v1",
+      "access_key_file": "/run/secrets/backup_minio_access_key",
+      "secret_key_file": "/run/secrets/backup_minio_secret_key",
+      "required": true
+    }
+  ]
+}

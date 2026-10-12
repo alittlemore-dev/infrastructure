@@ -1,0 +1,3 @@
+alittlemore-backend-sdk[litestar]==0.3.0
+litestar==2.24.0
+uvicorn==0.41.0

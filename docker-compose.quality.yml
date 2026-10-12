@@ -1,6 +1,8 @@
 name: alittlemore-infra-quality
 
 x-quality-tool: &quality-tool
+  cpus: 1
+  mem_limit: 256m
   read_only: true
   cap_drop:
     - ALL

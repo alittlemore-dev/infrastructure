@@ -36,7 +36,7 @@ class RepositoryAutomationTest(unittest.TestCase):
             for relative_path in (
                 "infra/minio/policies/personal-workspace.json",
                 "infra/minio/policies/competency-trainer.json",
-                "infra/minio/policies/databasus.json",
+                "infra/minio/policies/backup.json",
                 "infra/deploy/runtime-secrets.manifest.json",
                 "infra/new-component/contract.json",
             ):

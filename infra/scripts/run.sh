@@ -35,7 +35,6 @@ readonly INFRASTRUCTURE_SERVICES=(
     auth-api-valkey
     i18n-valkey
     minio
-    databasus
 )
 
 other_slot() {
@@ -117,10 +116,6 @@ prepare_minio_volume_permissions() {
 record_minio_credential_fingerprints() {
     local temporary_fingerprint_file
 
-    if [ -e "$MINIO_CREDENTIAL_FINGERPRINT_FILE" ] \
-        || [ -L "$MINIO_CREDENTIAL_FINGERPRINT_FILE" ]; then
-        return
-    fi
     temporary_fingerprint_file="$(mktemp "${MINIO_CREDENTIAL_FINGERPRINT_FILE}.tmp.XXXXXX")"
     if ! python3 "$script_dir/minio_credential_fingerprints.py" >"$temporary_fingerprint_file" \
         || ! chmod 600 "$temporary_fingerprint_file" \
@@ -418,5 +413,12 @@ if ! save_active_slot "$target_slot"; then
 fi
 trap - HUP INT TERM
 stop_previous_slot "$previous_slot"
+
+# Backup starts only after initializers and the candidate application readiness checks.
+export BACKUP_METADATA_DIR="${DEPLOY_STATE_DIR}/backup-metadata"
+if ! python3 "$script_dir/backup_deployment_metadata.py" --output-dir "$BACKUP_METADATA_DIR" \
+    || ! compose_up_wait --build backup backup-status; then
+    echo "Deployment is active; backup services need operator attention." >&2
+fi
 
 echo "Unified deployment slot ${target_slot} is active for all applications."

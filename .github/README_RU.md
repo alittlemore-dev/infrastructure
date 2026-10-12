@@ -17,7 +17,7 @@ production-топологию, конфигурацию, секреты, TLS edg
 - API-маршрутизация с namespaces: `/api/personal-workspace/*` и `/api/competency/*`
   преобразуются в существующий контракт `/api/*` соответствующего backend; Auth API использует `/api/auth/*`.
 - Отдельные PostgreSQL, Valkey, credentials, volumes и приватные сети для каждого приложения.
-- Общие MinIO и Databasus с отдельными identities и ограниченным доступом к buckets.
+- Автоматические бэкапы PostgreSQL, Valkey и файлов с тремя точками восстановления.
 - Синхронный blue/green rollout приложений с health checks и автоматическим откатом маршрутизации.
 - Разделённые по сервисам конфигурация с исходными именами переменных и зашифрованные через
   SOPS/age секреты.

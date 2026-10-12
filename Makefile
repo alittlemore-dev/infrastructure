@@ -1,4 +1,5 @@
 .DEFAULT_GOAL := help
+.NOTPARALLEL:
 
 QUALITY_TOOLS_DIR ?= $(CURDIR)/.cache/quality-tools
 
@@ -9,6 +10,11 @@ help:
 	@printf '%-30s %s\n' '  tools' 'Resolve or install pinned quality tools.'
 	@printf '%-30s %s\n' '  tests' 'Run all tests, including the SOPS/age round trip.'
 	@printf '%-30s %s\n' '  minio-smoke' 'Build and verify MinIO and its bootstrap with isolated test data.'
+	@printf '%-30s %s\n' '  backup-run' 'Run an explicit backup in the already running worker.'
+	@printf '%-30s %s\n' '  backup-status' 'Read safe backup status without decrypting secrets.'
+	@printf '%-30s %s\n' '  backup-health' 'Check worker heartbeat, freshness and failed attempts.'
+	@printf '%-30s %s\n' '  backup-smoke' 'Verify isolated backup delivery, rotation and restoration.'
+	@printf '%-30s %s\n' '  backup-typecheck' 'Strictly check types in the backup worker and status reader.'
 	@printf '%-30s %s\n' '  validate' 'Validate scripts, JSON, manifests, and Compose config.'
 	@printf '%-30s %s\n' '  lint' 'Lint every Dockerfile and shell script.'
 	@printf '%-30s %s\n' '  security-config' 'Scan repository configuration with Trivy.'
@@ -104,8 +110,22 @@ secrets-verify:
 		--age-key-file "$(SOPS_AGE_KEY_FILE)"
 
 .PHONY: quality
-quality: tests validate lint security-config minio-smoke
+quality: tests backup-typecheck validate lint security-config minio-smoke backup-smoke
 
 .PHONY: dev-seed-analytics
 dev-seed-analytics:
 	bash infra/scripts/seed_dev_analytics.sh
+
+.PHONY: backup-run backup-status backup-health backup-smoke
+backup-run:
+	bash infra/scripts/backup.sh run
+backup-status:
+	bash infra/scripts/backup.sh status
+backup-health:
+	bash infra/scripts/backup.sh health
+backup-smoke:
+	bash infra/scripts/backup_smoke.sh
+
+.PHONY: backup-typecheck
+backup-typecheck:
+	bash infra/scripts/backup_typecheck.sh
