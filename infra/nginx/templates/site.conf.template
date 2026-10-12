@@ -49,9 +49,9 @@ upstream minio_panel {
     zone minio_panel_zone 64k;
     server minio:9001 resolve;
 }
-upstream databasus {
-    zone databasus_zone 64k;
-    server databasus:4005 resolve;
+upstream backup_status {
+    zone backup_status_zone 64k;
+    server backup-status:8080 resolve;
 }
 
 server {
@@ -277,6 +277,28 @@ server {
         proxy_pass http://competency_backend/api/;
     }
 
+    location = /api/infra/healthcheck {
+        if ($request_method != GET) { return 405; }
+        proxy_hide_header Cache-Control;
+        add_header_inherit merge;
+        add_header Cache-Control "no-store" always;
+        proxy_pass http://backup_status;
+    }
+
+    location = /api/infra/backups/sets {
+        if ($request_method != GET) { return 405; }
+        proxy_hide_header Cache-Control;
+        add_header_inherit merge;
+        add_header Cache-Control "no-store" always;
+        proxy_pass http://backup_status;
+    }
+
+    location ^~ /api/infra/ {
+        add_header_inherit merge;
+        add_header Cache-Control "no-store" always;
+        return 404;
+    }
+
     location /api/ {
         return 404;
     }
@@ -374,26 +396,16 @@ server {
 }
 
 server {
-    listen 18082;
+    listen 18085;
     server_name _;
-
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header Referrer-Policy "no-referrer" always;
-
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade;
-    proxy_read_timeout 300;
-    proxy_send_timeout 300;
-
-    location / {
-        proxy_pass http://databasus;
+    location = /api/auth/verify/v2 {
+        if ($request_method != POST) { return 405; }
+        proxy_pass http://auth_api_backend;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 5s;
+        access_log off;
     }
+    location / { return 404; }
 }
 
 

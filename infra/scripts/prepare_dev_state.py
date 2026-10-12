@@ -421,8 +421,8 @@ def prepare(args: argparse.Namespace) -> None:
     values = {
         platform_secrets / "minio_root_access_key": lambda: f"local-root-{secrets.token_hex(6)}",
         platform_secrets / "minio_root_secret_key": random_token,
-        platform_secrets / "databasus_minio_access_key": lambda: f"local-backup-{secrets.token_hex(6)}",
-        platform_secrets / "databasus_minio_secret_key": random_token,
+        platform_secrets / "backup_minio_access_key": lambda: f"local-backup-{secrets.token_hex(6)}",
+        platform_secrets / "backup_minio_secret_key": random_token,
         personal_secrets / "db_password": random_token,
         personal_secrets / "minio_access_key": lambda: f"local-personal-{secrets.token_hex(6)}",
         personal_secrets / "minio_secret_key": random_token,
@@ -469,8 +469,8 @@ def prepare(args: argparse.Namespace) -> None:
         "NGINX_CERTS_DIR": str(state_dir / "tls"),
         "COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE": str(platform_secrets / "minio_root_access_key"),
         "COMPOSE_MINIO_ROOT_SECRET_KEY_FILE": str(platform_secrets / "minio_root_secret_key"),
-        "COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE": str(platform_secrets / "databasus_minio_access_key"),
-        "COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE": str(platform_secrets / "databasus_minio_secret_key"),
+        "COMPOSE_BACKUP_MINIO_ACCESS_KEY_FILE": str(platform_secrets / "backup_minio_access_key"),
+        "COMPOSE_BACKUP_MINIO_SECRET_KEY_FILE": str(platform_secrets / "backup_minio_secret_key"),
         "COMPOSE_PERSONAL_WORKSPACE_APP_SECRET_KEY_FILE": str(personal_secrets / "app_secret_key"),
         "COMPOSE_PERSONAL_WORKSPACE_DB_PASSWORD_FILE": str(personal_secrets / "db_password"),
         "COMPOSE_PERSONAL_WORKSPACE_MINIO_ACCESS_KEY_FILE": str(personal_secrets / "minio_access_key"),
@@ -506,6 +506,25 @@ def prepare(args: argparse.Namespace) -> None:
             ("AUTH_API", auth_api),
         ):
             environment[f"{service}_DEV_DOCKERFILE"] = str(development_dockerfile(checkout, state_dir))
+
+    backup_config_dir = state_dir / "backup/config"
+    backup_recovery_dir = state_dir / "backup/recovery"
+    ensure_directory(backup_config_dir, mode=0o755)
+    ensure_directory(backup_recovery_dir, mode=0o755)
+    sources = json.loads((repo_dir / "infra/backup/sources.json").read_text())
+    recovery_paths = []
+    for service in ("platform", "personal-workspace", "competency-trainer", "auth-api", "i18n"):
+        relative = f"config/{service}/development.env"
+        target = backup_recovery_dir / relative
+        ensure_directory(target.parent, mode=0o755)
+        atomic_write(target, (repo_dir / relative).read_text(), mode=0o444)
+        recovery_paths.append(relative)
+    for source in sources["sources"]:
+        if source["type"] == "config":
+            source["paths"] = recovery_paths
+    atomic_write(backup_config_dir / "sources.json", json.dumps(sources), mode=0o444)
+    atomic_write(backup_config_dir / "destinations.json", (repo_dir / "config/platform/backup.destinations.json").read_text(), mode=0o444)
+    environment.update(BACKUP_DEV_CONFIG_DIR=str(backup_config_dir), BACKUP_DEV_RECOVERY_DIR=str(backup_recovery_dir), BACKUP_METADATA_DIR=str(state_dir / "backup/metadata"))
 
     compose_environment = "".join(
         f"{name}={dotenv_value(value)}\n" for name, value in sorted(environment.items())

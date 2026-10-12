@@ -585,6 +585,9 @@ class DevOrchestrationTest(unittest.TestCase):
                 "#!/bin/sh\n"
                 "printf '%s\\n' \"$*\" >>\"$FAKE_DOCKER_LOG\"\n"
                 "if [ \"$1 $2 $3\" = 'compose version --short' ]; then printf '2.24.0\\n'; fi\n"
+                "if [ \"$1\" = ps ]; then printf 'fixture\\n'; fi\n"
+                "if [ \"$1 $2\" = 'inspect --format' ]; then printf 'frontend-blue|local/frontend|sha256:%064d\\n' 0; fi\n"
+                "if [ \"$1 $2 $3\" = 'image inspect --format' ]; then printf '[]\\n'; fi\n"
                 "exit 0\n",
             )
             make_executable(

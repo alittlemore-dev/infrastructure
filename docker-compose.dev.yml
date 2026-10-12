@@ -175,8 +175,23 @@ services:
     image: alittlemore-dev/minio-bootstrap:local
     container_name: alittlemore_dev_minio_bootstrap
 
-  databasus:
-    container_name: alittlemore_dev_databasus
+  backup:
+    image: alittlemore-dev/backup:local
+    container_name: alittlemore_dev_backup
+    environment:
+      BACKUP_SCHEDULE_ENABLED: ${BACKUP_SCHEDULE_ENABLED:-false}
+    volumes: !override
+      - backup_state:/state
+      - backup_work:/work
+      - backup_projection:/projection
+      - ${BACKUP_DEV_CONFIG_DIR:?local backup config must be prepared}/sources.json:/etc/backup/sources.json:ro
+      - ${BACKUP_DEV_CONFIG_DIR:?local backup config must be prepared}/destinations.json:/etc/backup/destinations.json:ro
+      - ${BACKUP_DEV_RECOVERY_DIR:?local recovery config must be prepared}:/recovery:ro
+      - ${BACKUP_METADATA_DIR:?local image metadata must be prepared}:/metadata:ro
+
+  backup-status:
+    image: alittlemore-dev/backup-status:local
+    container_name: alittlemore_dev_backup_status
 
   nginx:
     container_name: alittlemore_dev_nginx

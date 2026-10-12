@@ -9,11 +9,10 @@ Public ingress consists of `80/tcp`, `443/tcp`, and one chosen WireGuard UDP por
 private interfaces only to `VPN_BIND_ADDRESS`:
 
 - MinIO Console: `http://<VPN_BIND_ADDRESS>:18081`
-- Databasus: `http://<VPN_BIND_ADDRESS>:18082`
 
 Set production `VPN_BIND_ADDRESS` to the server address on `wg0`, for example `10.77.0.1`.
 Development keeps it on `127.0.0.1`. PostgreSQL, Valkey, application processes, MinIO, and
-Databasus do not publish their own ports; nginx is the only normal runtime service with host port
+backup services do not publish their own ports; nginx is the only normal runtime service with host port
 mappings.
 
 ## Host setup
@@ -86,13 +85,12 @@ sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw allow 51820/udp
 sudo ufw allow in on wg0 to 10.77.0.1 port 18081 proto tcp
-sudo ufw allow in on wg0 to 10.77.0.1 port 18082 proto tcp
 sudo ufw enable
 sudo ufw status verbose
 ```
 
-Keep `18081` and `18082` closed on the public interface. Docker adds host NAT/firewall rules;
-verify from a network without WireGuard that these ports cannot connect on the public address.
+Keep `18081` closed on the public interface. Docker adds host NAT/firewall rules;
+verify from a network without WireGuard that this port cannot connect on the public address.
 If they can, add explicit public-interface drops before Docker's accept path through host-managed
 UFW or `DOCKER-USER` policy.
 
@@ -103,26 +101,25 @@ infrastructure deployment workflow. After deployment, inspect host bindings:
 
 ```bash
 docker compose ps nginx
-sudo ss -lntp | grep -E ':(80|443|18081|18082)\b'
+sudo ss -lntp | grep -E ':(80|443|18081)\b'
 ```
 
 Expected result:
 
 - `80` and `443` are reachable on the public address.
-- `18081` and `18082` bind only to `VPN_BIND_ADDRESS`.
+- `18081` binds only to `VPN_BIND_ADDRESS`.
+- Backup status is visible to the site owner over HTTPS in `dashboard?tab=healthcheck`.
 
 From a public network, all private ports must fail to connect:
 
 ```bash
 curl --connect-timeout 3 http://<server public IP>:18081
-curl --connect-timeout 3 http://<server public IP>:18082
 ```
 
-From the maintainer device on WireGuard, the panels should reach their login surfaces:
+From the maintainer device on WireGuard, the MinIO panel should reach its login surface:
 
 ```bash
 curl -I http://10.77.0.1:18081
-curl -I http://10.77.0.1:18082
 ```
 
 ## Revocation

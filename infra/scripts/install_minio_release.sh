@@ -21,6 +21,9 @@ esac
 
 apk upgrade --no-cache
 apk add --no-cache ca-certificates curl
+if [ "$component" = mc ]; then
+    apk add --no-cache jq
+fi
 
 download="$(mktemp)"
 trap 'rm -f "$download"' EXIT HUP INT TERM

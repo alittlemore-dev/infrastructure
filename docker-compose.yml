@@ -632,10 +632,10 @@ services:
         target: competency_minio_access_key
       - source: competency_minio_secret_key
         target: competency_minio_secret_key
-      - source: databasus_minio_access_key
-        target: databasus_minio_access_key
-      - source: databasus_minio_secret_key
-        target: databasus_minio_secret_key
+      - source: backup_minio_access_key
+        target: backup_minio_access_key
+      - source: backup_minio_secret_key
+        target: backup_minio_secret_key
       - source: auth_api_minio_access_key
         target: auth_api_minio_access_key
       - source: auth_api_minio_secret_key
@@ -726,23 +726,97 @@ services:
       timeout: 60s
       retries: 12
 
-  databasus:
-    image: databasus/databasus:v3.60.0
-    container_name: alittlemore_infra_databasus
+  backup:
+    build:
+      context: .
+      dockerfile: infra/backup/Dockerfile
+    image: alittlemore-infra/backup:local
+    pull_policy: never
+    container_name: alittlemore_infra_backup
+    user: "10004:10004"
     restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:mode=1777,uid=10004,gid=10004
+    environment:
+      PERSONAL_WORKSPACE_DB_NAME: ${PERSONAL_WORKSPACE_DB_NAME}
+      PERSONAL_WORKSPACE_DB_USER: ${PERSONAL_WORKSPACE_DB_USER}
+      COMPETENCY_DB_NAME: ${COMPETENCY_DB_NAME}
+      COMPETENCY_DB_USER: ${COMPETENCY_DB_USER}
+      AUTH_API_DB_NAME: ${AUTH_API_DB_NAME}
+      AUTH_API_DB_USER: ${AUTH_API_DB_USER}
+      MINIO_REGION: ${MINIO_REGION}
+      BACKUP_SCHEDULE_ENABLED: ${BACKUP_SCHEDULE_ENABLED:-true}
+      BACKUP_DEPLOYMENT_METADATA: /metadata/deployment.json
+    secrets:
+      - source: personal_workspace_db_password
+        target: personal_workspace_db_password
+      - source: competency_db_password
+        target: competency_db_password
+      - source: auth_api_db_password
+        target: auth_api_db_password
+      - source: backup_minio_access_key
+        target: backup_minio_access_key
+      - source: backup_minio_secret_key
+        target: backup_minio_secret_key
     volumes:
-      - databasus_data:/databasus-data
+      - backup_state:/state
+      - backup_work:/work
+      - backup_projection:/projection
+      - ./infra/backup/sources.json:/etc/backup/sources.json:ro
+      - ./config/platform/backup.destinations.json:/etc/backup/destinations.json:ro
+      - ./config:/recovery/config:ro
+      - ./secrets:/recovery/secrets:ro
+      - ./docker-compose.yml:/recovery/docker-compose.yml:ro
+      - ./infra/deploy:/recovery/infra/deploy:ro
+      - ./infra/minio/policies:/recovery/infra/minio/policies:ro
+      - ./infra/backup/sources.json:/recovery/infra/backup/sources.json:ro
+      - ${BACKUP_METADATA_DIR:-./.deploy-state/backup-metadata}:/metadata:ro
     networks:
       - personal-workspace-network
       - competency-network
       - auth-api-network
+      - i18n-network
     depends_on:
       personal-workspace-postgres:
         condition: service_healthy
       competency-postgres:
         condition: service_healthy
+      auth-api-postgres:
+        condition: service_healthy
+      personal-workspace-valkey:
+        condition: service_healthy
+      competency-valkey:
+        condition: service_healthy
+      auth-api-valkey:
+        condition: service_healthy
+      i18n-valkey:
+        condition: service_healthy
       minio-bootstrap:
         condition: service_completed_successfully
+
+  backup-status:
+    build:
+      context: .
+      dockerfile: infra/backup-status/Dockerfile
+    image: alittlemore-infra/backup-status:local
+    pull_policy: never
+    container_name: alittlemore_infra_backup_status
+    user: "10004:10004"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:mode=1777,uid=10004,gid=10004
+    environment:
+      BACKUP_AUTH_VERIFY_URL: http://nginx:18085/api/auth/verify/v2
+    volumes:
+      - backup_projection:/projection:ro
+    networks:
+      - auth-api-network
 
   nginx:
     build:
@@ -782,12 +856,9 @@ services:
       - "80:8080"
       - "443:8443"
       - "${VPN_BIND_ADDRESS}:18081:18081"
-      - "${VPN_BIND_ADDRESS}:18082:18082"
     depends_on:
       minio-bootstrap:
         condition: service_completed_successfully
-      databasus:
-        condition: service_started
     networks:
       - personal-workspace-network
       - competency-network
@@ -865,7 +936,9 @@ volumes:
   competency_postgres_data:
   competency_valkey_data:
   minio_data:
-  databasus_data:
+  backup_state:
+  backup_work:
+  backup_projection:
   letsencrypt:
   certbot_www:
 
@@ -876,10 +949,10 @@ secrets:
     file: ${COMPOSE_MINIO_ROOT_ACCESS_KEY_FILE:?prepare Compose secrets first}
   minio_root_secret_key:
     file: ${COMPOSE_MINIO_ROOT_SECRET_KEY_FILE:?prepare Compose secrets first}
-  databasus_minio_access_key:
-    file: ${COMPOSE_DATABASUS_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
-  databasus_minio_secret_key:
-    file: ${COMPOSE_DATABASUS_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
+  backup_minio_access_key:
+    file: ${COMPOSE_BACKUP_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
+  backup_minio_secret_key:
+    file: ${COMPOSE_BACKUP_MINIO_SECRET_KEY_FILE:?prepare Compose secrets first}
   auth_api_minio_access_key:
     file: ${COMPOSE_AUTH_API_MINIO_ACCESS_KEY_FILE:?prepare Compose secrets first}
   auth_api_minio_secret_key:

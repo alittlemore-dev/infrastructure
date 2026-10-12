@@ -1,0 +1,85 @@
+{
+  "interval_seconds": 21600,
+  "freshness_threshold_seconds": 25200,
+  "pending_budget_bytes": 10737418240,
+  "recovery_root": "/recovery",
+  "sources": [
+    {
+      "id": "personal-workspace-postgres",
+      "type": "postgres",
+      "host": "personal-workspace-postgres",
+      "database_env": "PERSONAL_WORKSPACE_DB_NAME",
+      "user_env": "PERSONAL_WORKSPACE_DB_USER",
+      "password_file": "/run/secrets/personal_workspace_db_password"
+    },
+    {
+      "id": "competency-postgres",
+      "type": "postgres",
+      "host": "competency-postgres",
+      "database_env": "COMPETENCY_DB_NAME",
+      "user_env": "COMPETENCY_DB_USER",
+      "password_file": "/run/secrets/competency_db_password"
+    },
+    {
+      "id": "auth-api-postgres",
+      "type": "postgres",
+      "host": "auth-api-postgres",
+      "database_env": "AUTH_API_DB_NAME",
+      "user_env": "AUTH_API_DB_USER",
+      "password_file": "/run/secrets/auth_api_db_password"
+    },
+    {"id": "personal-workspace-valkey", "type": "valkey", "host": "personal-workspace-valkey"},
+    {"id": "competency-valkey", "type": "valkey", "host": "competency-valkey"},
+    {"id": "auth-api-valkey", "type": "valkey", "host": "auth-api-valkey"},
+    {"id": "i18n-valkey", "type": "valkey", "host": "i18n-valkey"},
+    {
+      "id": "media", "type": "s3", "endpoint": "http://minio:9000", "internal": true,
+      "region_env": "MINIO_REGION", "bucket": "media",
+      "access_key_file": "/run/secrets/backup_minio_access_key",
+      "secret_key_file": "/run/secrets/backup_minio_secret_key"
+    },
+    {
+      "id": "knowledge-private", "type": "s3", "endpoint": "http://minio:9000", "internal": true,
+      "region_env": "MINIO_REGION", "bucket": "knowledge-private",
+      "access_key_file": "/run/secrets/backup_minio_access_key",
+      "secret_key_file": "/run/secrets/backup_minio_secret_key"
+    },
+    {
+      "id": "resume-private", "type": "s3", "endpoint": "http://minio:9000", "internal": true,
+      "region_env": "MINIO_REGION", "bucket": "resume-private",
+      "access_key_file": "/run/secrets/backup_minio_access_key",
+      "secret_key_file": "/run/secrets/backup_minio_secret_key"
+    },
+    {
+      "id": "auth-avatars", "type": "s3", "endpoint": "http://minio:9000", "internal": true,
+      "region_env": "MINIO_REGION", "bucket": "auth-avatars",
+      "access_key_file": "/run/secrets/backup_minio_access_key",
+      "secret_key_file": "/run/secrets/backup_minio_secret_key"
+    },
+    {
+      "id": "recovery-config", "type": "config",
+      "paths": [
+        "config/platform/production.env",
+        "config/platform/backup.destinations.json",
+        "config/personal-workspace/production.env",
+        "config/competency-trainer/production.env",
+        "config/auth-api/production.env",
+        "config/i18n/production.env",
+        "secrets/platform/production.sops.yaml",
+        "secrets/personal-workspace/production.sops.yaml",
+        "secrets/personal-workspace/telegram.sops.yaml",
+        "secrets/competency-trainer/production.sops.yaml",
+        "secrets/auth-api/production.sops.yaml",
+        "secrets/i18n/production.sops.yaml",
+        "docker-compose.yml",
+        "infra/deploy/runtime-config.manifest.json",
+        "infra/deploy/runtime-secrets.manifest.json",
+        "infra/backup/sources.json",
+        "infra/minio/policies/personal-workspace.json",
+        "infra/minio/policies/competency-trainer.json",
+        "infra/minio/policies/auth-api.json",
+        "infra/minio/policies/backup.json"
+      ]
+    }
+  ]
+}

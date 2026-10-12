@@ -192,7 +192,7 @@ committed, and successfully deployed. Keep those sources outside the repository 
 permissions.
 
 Keep the five configured MinIO access-key identities stable: `MINIO_ROOT_ACCESS_KEY` and
-`DATABASUS_MINIO_ACCESS_KEY` in the platform document, plus each application's own
+`BACKUP_MINIO_ACCESS_KEY` in the platform document, plus each application's own
 `MINIO_ACCESS_KEY`. Use distinct random values of at least eight characters for their five secret
 keys; `make run` rejects duplicate identities, short secrets, and reused secret values.
 
@@ -200,13 +200,9 @@ After the first successful MinIO bootstrap, `make run` stores only SHA-256 finge
 access keys and all five secret keys in the stable, owner-only
 `.deploy-state/minio-credentials.sha256` file. Every later run compares the configured credentials
 before pulling images or touching Docker. Any change is rejected instead of creating an unmanaged
-old user or breaking the old application slot or the credential saved in Databasus during a failed
-rollout. MinIO credential rotation is therefore a separate coordinated maintenance operation, not
-part of ordinary deployment; update Databasus' saved S3 destination credential as part of that
-maintenance. An eight-line marker written before Auth API credentials were tracked is accepted
-once only when all eight existing fingerprints match. The older four-line format is accepted
-only when all four previously tracked secret-key fingerprints match. Both formats are atomically
-upgraded to the ten-line format, adding the Auth API credentials without rotating existing keys.
+old user or breaking the old application slot or backup delivery during a failed rollout. MinIO
+credential rotation is a separate coordinated maintenance operation. Startup accepts only the
+current fingerprint format and rejects credential changes.
 
 ## Secrets
 
@@ -230,7 +226,8 @@ aliases are passed to applications or retained in the manifest.
 
 At startup, `infra/scripts/compose_secrets.sh` decrypts the manifest documents in memory into an
 owner-only immutable generation, validates their exact keys, normalizes explicitly marked PEM
-values, validates the application PKI, and checks all ten MinIO credential fingerprints. Only
+values, validates the application PKI, and checks all ten ordered MinIO credential fingerprints. Display labels are metadata; actual
+access and secret values remain pinned. The bootstrap records their current labels atomically. Only
 then does it atomically switch the symlink for the inactive blue/green slot. The active slot keeps
 its own generation throughout rollout and rollback, and the old flat `.deploy-state/compose-secrets`
 directory from the pre-SOPS release is deliberately left untouched during the first transition.
@@ -242,8 +239,7 @@ intact.
 
 The MinIO root identity is mounted only into MinIO and its one-shot bootstrap. Application MinIO
 identities are mounted into the bootstrap and their respective backend processes. The dedicated
-Databasus identity is created by the bootstrap; its credentials are entered into Databasus when
-the S3 destination is configured in the VPN-only UI.
+backup identity is created by the bootstrap; only the worker and bootstrap receive its secret files.
 
 Auth API owns human login, accounts, sessions, and token refresh. Its Ed25519 PASETO pair is stored
 together in its encrypted document and validated for algorithm and equality before rollout.
@@ -401,7 +397,7 @@ rotation:
 | `SENTRY_DSN` and ordinary API tokens | Edit the owning SOPS document, verify, and deploy. |
 | Auth API `APP_SECRET_KEY` | Expect existing Auth API sessions or signed values to become invalid. |
 | `DB_PASSWORD` | Change the PostgreSQL role password in the same maintenance operation; changing SOPS alone does not update an initialized database. |
-| Any MinIO access or secret key | Use a dedicated rotation procedure. Ordinary startup rejects changes after the first successful bootstrap by comparing stored fingerprints. Databasus' saved S3 destination must be updated when its identity rotates. |
+| Any MinIO access or secret key | Use a dedicated rotation procedure. Ordinary startup rejects changes after the first successful bootstrap by comparing stored fingerprints. Coordinate backup and application secret-file updates during rotation. |
 | Auth API `AUTH_PRIVATE_KEY` | Update the matching Auth API public key and account for invalidated tokens. |
 
 ### Instructions for AI agents
@@ -481,8 +477,7 @@ references end in `:latest`.
 Before the edge switch, `make run` must successfully:
 
 - pull all application images;
-- make all PostgreSQL and Valkey pairs plus the shared MinIO healthy, complete the MinIO bootstrap,
-  and start the shared Databasus container (Databasus has no container health probe);
+- make all PostgreSQL and Valkey pairs plus the shared MinIO healthy and complete the MinIO bootstrap;
 - run all backend initializers;
 - make all target backends and the shared target frontend healthy, independently inspect their
   runtime health after Compose returns, and recheck it immediately before replacing nginx;
@@ -520,7 +515,7 @@ retag the desired backend and frontend digests as `latest` in the registry, then
 ## Data and backup boundaries
 
 Each application owns separate named volumes and credentials for PostgreSQL and Valkey. MinIO and
-Databasus are shared infrastructure services with one named volume each. This is a new deployment
+the persistent backup worker are shared infrastructure services. This is a new deployment
 topology: it does not import or attach the old repositories' Compose volumes.
 Before the first unified start, stop both legacy Compose projects so their fixed container names and
 host ports do not conflict. Disable manual production deploy workflows in both application
@@ -528,26 +523,17 @@ repositories and remove their access to the production GitHub Environment/SSH cr
 cutover; otherwise an accidental legacy workflow dispatch can recreate the old stacks. This
 intentionally starts with fresh unified-project volumes; migration or restoration of legacy data
 is outside this no-backward-compatibility cutover.
-Configure the single Databasus instance with all PostgreSQL sources:
-
-- Personal Workspace: host `personal-workspace-postgres`, port `5432`, database/user/password from
-  `DB_NAME` and `DB_USER` in `config/personal-workspace/production.env`, plus `DB_PASSWORD` in
-  `secrets/personal-workspace/production.sops.yaml`.
-- Competency Trainer: host `competency-postgres`, port `5432`, database/user/password from
-  `DB_NAME` and `DB_USER` in `config/competency-trainer/production.env`, plus `DB_PASSWORD` in
-  `secrets/competency-trainer/production.sops.yaml`.
-
-- Auth API: host `auth-api-postgres`, port `5432`, database/user from
-  `config/auth-api/production.env` and password from `secrets/auth-api/production.sops.yaml`.
-
-For an S3 backup destination use endpoint `http://minio:9000`, bucket `database-backups`, region
-from `MINIO_REGION`, and the `DATABASUS_MINIO_ACCESS_KEY` / `DATABASUS_MINIO_SECRET_KEY`
-credentials. The MinIO bootstrap creates that private bucket and restricts the Databasus identity
-to it.
+After application readiness and a successful edge switch, deployment records the infra revision
+and running image digests, then starts `backup` and the independent read-only `backup-status`.
+Backup-service failures report operator attention without undoing a verified application rollout.
+The worker collects all three PostgreSQL databases, four Valkey instances, application files and
+allowlisted encrypted recovery configuration every six hours. The initial destination is internal
+MinIO `database-backups/system/v1`, using unchanged `BACKUP_MINIO_*` credentials. See
+[backups and restoration](backups.md) for retention, commands, status and recovery boundaries.
 
 The application identities are separate: Personal Workspace can use `media` and
 `knowledge-private`; Competency Trainer can use `media`; neither can use `database-backups`.
-Databasus can use only `database-backups`. Both current application images hard-code the bucket
+The backup identity can read application buckets and manage only the backup prefix. Both current application images hard-code the bucket
 name `media`, so their public media objects intentionally occupy one shared namespace. Complete
 bucket-level isolation would require changing the application code to make that bucket name
 configurable. MinIO CORS allows the shared application origin. The public S3 endpoint rejects
@@ -558,10 +544,10 @@ configurable. MinIO CORS allows the shared application origin. The public S3 end
 Host setup, firewall rules, split DNS, verification, and peer revocation are documented in
 [WireGuard internal access](wireguard-internal-access.md).
 
-Only nginx publishes normal runtime ports. `80` and `443` are public. Ports `18081` and `18082`
+Only nginx publishes normal runtime ports. `80` and `443` are public. MinIO Console port `18081`
 must bind to `VPN_BIND_ADDRESS`; do not use `0.0.0.0` or a public interface address. PostgreSQL,
-Valkey, MinIO, Databasus, backend, and TaskIQ processes remain on per-application bridge
-networks.
+Valkey, MinIO, backup services, backend and TaskIQ processes remain on bridge networks. The owner
+Healthcheck API uses normal HTTPS; token verification listener `18085` is Docker-only.
 
 ## Host requirements
 
