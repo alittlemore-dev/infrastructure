@@ -541,7 +541,7 @@ services:
       retries: 12
 
   personal-workspace-valkey:
-    image: valkey/valkey:9.1.2
+    image: valkey/valkey:9.1.3
     container_name: personal_workspace_valkey
     user: "999:999"
     restart: unless-stopped
@@ -556,7 +556,7 @@ services:
       retries: 12
 
   i18n-valkey:
-    image: valkey/valkey:9.1.2
+    image: valkey/valkey:9.1.3
     container_name: i18n_valkey
     user: "999:999"
     restart: unless-stopped
@@ -674,7 +674,7 @@ services:
       retries: 12
 
   competency-valkey:
-    image: valkey/valkey:9.1.2
+    image: valkey/valkey:9.1.3
     container_name: competency_trainer_valkey
     user: "999:999"
     restart: unless-stopped
@@ -712,7 +712,7 @@ services:
 
   auth-api-valkey:
     command: ["valkey-server", "--appendonly", "yes"]
-    image: valkey/valkey:9.1.2
+    image: valkey/valkey:9.1.3
     container_name: auth_api_valkey
     user: "999:999"
     restart: unless-stopped
@@ -871,7 +871,7 @@ services:
       retries: 12
 
   certbot:
-    image: certbot/certbot:v5.8.0
+    image: certbot/certbot:v5.9.0
     container_name: alittlemore_infra_certbot
     profiles:
       - letsencrypt
