@@ -77,13 +77,13 @@ def host(args: argparse.Namespace) -> None:
         if subprocess.run(["docker", "network", "inspect", args.name], capture_output=True).returncode == 0:
             raise RuntimeError("Refusing to reuse fixture network")
         network = command(["docker", "network", "create", "--label", label, args.name])
-        pg = start("postgres", "postgres:18.6-alpine", ["--memory", "256m", "--tmpfs", "/var/lib/postgresql",
+        pg = start("postgres", "postgres:18.7-alpine", ["--memory", "256m", "--tmpfs", "/var/lib/postgresql",
             "--env", "POSTGRES_USER=fixture", "--env", "POSTGRES_PASSWORD=fixture-password"], postgres_options)
         wait(pg, ["pg_isready", "-h", "127.0.0.1", "-U", "fixture"])
-        pg_restore = start("restore-postgres", "postgres:18.6-alpine", ["--memory", "256m", "--tmpfs", "/var/lib/postgresql",
+        pg_restore = start("restore-postgres", "postgres:18.7-alpine", ["--memory", "256m", "--tmpfs", "/var/lib/postgresql",
             "--env", "POSTGRES_USER=restore_admin", "--env", "POSTGRES_PASSWORD=fixture-password"], postgres_options)
         wait(pg_restore, ["pg_isready", "-h", "127.0.0.1", "-U", "restore_admin"])
-        cache = start("valkey", "valkey/valkey:9.1.2", ["--memory", "64m", "--tmpfs", "/data"],
+        cache = start("valkey", "valkey/valkey:9.1.4", ["--memory", "64m", "--tmpfs", "/data"],
                       ["valkey-server", "--save", "", "--appendonly", "no", "--repl-diskless-sync-delay", "0"])
         wait(cache, ["valkey-cli", "ping"])
         store_options = ["--memory", "256m", "--env", "GOMAXPROCS=1", "--env", "GOMEMLIMIT=160MiB", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
@@ -113,7 +113,7 @@ def host(args: argparse.Namespace) -> None:
         with rdb.open("wb") as output:
             subprocess.run(["docker", "exec", client, "cat", "/fixtures/download/sources/cache-0/snapshot.rdb"], stdout=output, check=True, timeout=30)
         rdb.chmod(0o644)
-        restored_cache = start("restore-valkey", "valkey/valkey:9.1.2", ["--memory", "64m", "--read-only",
+        restored_cache = start("restore-valkey", "valkey/valkey:9.1.4", ["--memory", "64m", "--read-only",
             "--mount", f"type=bind,source={root},target=/restore,readonly"],
             ["valkey-server", "--dir", "/restore", "--dbfilename", "snapshot.rdb", "--save", "", "--appendonly", "no"])
         wait(restored_cache, ["valkey-cli", "ping"])

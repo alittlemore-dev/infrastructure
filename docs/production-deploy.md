@@ -147,8 +147,8 @@ and internal operations remain excluded from the public specification.
 
 Infrastructure dependencies use fixed tags or digests in `docker-compose.yml` and their owning
 Dockerfiles. Locally built MinIO, MinIO client, nginx, and certificate-sync images use stable local
-tags. MinIO and its client install official GitHub release binaries; their versions and SHA-256
-checksums for amd64 and arm64 are pinned in `infra/scripts/install_minio_release.sh`.
+tags. The MinIO server is built from the official source release with a pinned archive checksum.
+The MinIO client installs official binaries with SHA-256 checksums pinned for amd64 and arm64.
 `make quality` builds both images and verifies health, repeated bootstrap, and S3 policy isolation
 with temporary test credentials and data, without using deployment state.
 

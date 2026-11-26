@@ -67,8 +67,7 @@ def safe_error(value: object) -> SafeError | None:
     code = raw.get("code")
     if not isinstance(code, str) or code not in ERROR_MESSAGES:
         raise ValueError("invalid error")
-    error_code = cast(ErrorCode, code)
-    result: SafeError = {"code": error_code, "message": ERROR_MESSAGES[error_code]}
+    result: SafeError = {"code": code, "message": ERROR_MESSAGES[code]}
     if raw.get("source_id") is not None:
         result["source_id"] = identifier(raw["source_id"])
     if raw.get("destination_id") is not None:

@@ -31,7 +31,10 @@ def serve() -> None:
             "last_success_at": now, "retained_sets": [{"run_id": "fixture", "roles": ["latest", "weekly_current"],
                 "complete": True, "completed_at": now, "total_bytes": 42}]}]}
     (path / "status.json").write_text(json.dumps(projection))
-    fixed = datetime.fromisoformat(projection["generated_at"].replace("Z", "+00:00"))
+    generated_at = projection["generated_at"]
+    if not isinstance(generated_at, str):
+        raise ValueError("projection generated_at must be a timestamp string")
+    fixed = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
     class Clock(datetime):
         @classmethod
         def now(cls, tz: tzinfo | None = None) -> Clock:

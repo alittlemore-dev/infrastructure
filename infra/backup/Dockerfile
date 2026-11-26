@@ -1,5 +1,5 @@
-FROM valkey/valkey:9.1.2-alpine AS valkey
-FROM postgres:18.6-alpine
+FROM valkey/valkey:9.1.4-alpine AS valkey
+FROM postgres:18.7-alpine
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1

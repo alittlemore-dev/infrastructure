@@ -197,15 +197,11 @@ build_services=(
     i18n-backend-blue
     frontend-blue
     nginx
+    minio
     minio-bootstrap
     backup
     backup-status
 )
-if ! docker image inspect alittlemore-dev/minio:local >/dev/null 2>&1; then
-    build_services+=(minio)
-else
-    echo "Reusing local MinIO image: alittlemore-dev/minio:local"
-fi
 # BuildKit otherwise overlaps all images in a small local Docker VM.
 for service in "${build_services[@]}"; do
     compose build "$service"

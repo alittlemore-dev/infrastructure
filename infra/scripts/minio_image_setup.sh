@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+apk upgrade --no-cache
+apk add --no-cache ca-certificates curl
+
 printf '%s\n' 'minio:x:10002:10002:MinIO:/data:/sbin/nologin' >>/etc/passwd
 printf '%s\n' 'minio:x:10002:' >>/etc/group
 mkdir -p /data
